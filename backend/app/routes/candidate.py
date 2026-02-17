@@ -29,3 +29,24 @@ async def upload_resume(file: UploadFile = File(...)):
         "candidate_info": candidate_info,
         "resume_text": extracted_text   # 🔥 IMPORTANT
     }
+
+
+@router.post("/upload-jd")
+async def upload_jd(file: UploadFile = File(...)):
+    file_ext = file.filename.split(".")[-1].lower()
+    if file_ext != "pdf":
+        return {"error": "JD must be a PDF file"}
+
+    filename = f"{uuid.uuid4()}.{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, filename)
+
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+
+    extracted_text = extract_resume_text(file_path)
+
+    return {
+        "message": "JD uploaded successfully",
+        "jd_text": extracted_text,
+        "jd_filename": file.filename,
+    }

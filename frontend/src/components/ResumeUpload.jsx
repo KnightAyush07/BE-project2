@@ -7,7 +7,10 @@ function ResumeUpload({ setCandidateData }) {
 
     try {
       const data = await uploadResume(file);
-      setCandidateData(data.candidate_info);
+      setCandidateData({
+        ...(data.candidate_info || {}),
+        resume_text: data.resume_text || "",
+      });
     } catch (error) {
       alert("Error uploading resume");
     }

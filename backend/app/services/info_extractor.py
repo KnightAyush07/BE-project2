@@ -12,11 +12,82 @@ def extract_phone(text):
     m = re.search(r"\b\d{10}\b", text)
     return m.group(0) if m else ""
 
+_NAME_STOPWORDS = {
+    "resume",
+    "curriculum",
+    "vitae",
+    "profile",
+    "summary",
+    "objective",
+    "experience",
+    "education",
+    "skills",
+    "projects",
+    "certifications",
+    "achievements",
+    "contact",
+    "address",
+    "linkedin",
+    "github",
+}
+
+def _clean_name(raw: str) -> str:
+    name = re.sub(r"\s+", " ", raw).strip(" -:|,.;")
+    # Keep only letters, spaces, apostrophes and dots (for initials).
+    name = re.sub(r"[^A-Za-z\s\.'-]", "", name)
+    return re.sub(r"\s+", " ", name).strip()
+
+def _looks_like_name(candidate: str) -> bool:
+    if not candidate:
+        return False
+    low = candidate.lower()
+    if any(token in low for token in ["@", "http", "www", "linkedin", "github"]):
+        return False
+    words = candidate.split()
+    if len(words) < 2 or len(words) > 4:
+        return False
+    if any(w.lower() in _NAME_STOPWORDS for w in words):
+        return False
+    if not all(re.fullmatch(r"[A-Za-z][A-Za-z\.'-]*", w) for w in words):
+        return False
+    return True
+
+def _extract_name_from_lines(text: str) -> str:
+    lines = [ln.strip() for ln in text.splitlines() if ln and ln.strip()]
+    if not lines:
+        return ""
+
+    top_lines = lines[:20]
+
+    # First preference: explicit "Name: John Doe"
+    for line in top_lines:
+        m = re.match(r"(?i)name\s*[:\-]\s*(.+)$", line)
+        if m:
+            candidate = _clean_name(m.group(1))
+            if _looks_like_name(candidate):
+                return candidate
+
+    # Second preference: first plausible top header line.
+    for line in top_lines:
+        cleaned = _clean_name(line)
+        if _looks_like_name(cleaned):
+            return cleaned
+
+    return ""
+
 def extract_name(text):
-    doc = nlp(text)
+    # Prefer deterministic line-based extraction from resume header.
+    by_header = _extract_name_from_lines(text)
+    if by_header:
+        return by_header
+
+    # Fallback to NER.
+    doc = nlp(text[:5000])
     for ent in doc.ents:
         if ent.label_ == "PERSON":
-            return ent.text
+            candidate = _clean_name(ent.text)
+            if _looks_like_name(candidate):
+                return candidate
     return ""
 
 def extract_skills(text):

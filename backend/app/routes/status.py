@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from datetime import datetime, timedelta
-from app.utils.store import CANDIDATES
+from app.db import get_conn
 
 router = APIRouter()
 
@@ -9,12 +9,22 @@ RESULT_DELAY = timedelta(minutes=2)
 
 @router.get("/check-status")
 def check_status(email: str):
-    candidate = next((c for c in CANDIDATES if c["email"] == email), None)
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM candidates WHERE email = ?", (email,))
+        candidate = cur.fetchone()
 
     if not candidate:
-        return {"error": "Candidate not found"}
+        return {"error": "No application was submitted"}
 
-    time_passed = datetime.utcnow() - candidate["submitted_at"]
+    current_status = candidate["status"]
+    if current_status in ("APPROVED", "REJECTED"):
+        return {
+            "status": current_status,
+            "message": "HR has reviewed your application."
+        }
+
+    time_passed = datetime.utcnow() - datetime.fromisoformat(candidate["submitted_at"])
 
     if time_passed < RESULT_DELAY:
         return {
@@ -23,14 +33,24 @@ def check_status(email: str):
         }
 
     # After delay
-    if candidate["status"] == "SELECTED" or candidate["ats_score"] >= 60:
-        candidate["status"] = "CONGRATULATIONS"
+    if candidate["status"] == "SELECTED" or (candidate["ats_score"] or 0) >= 60:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE candidates SET status = ? WHERE email = ?",
+                ("CONGRATULATIONS", email),
+            )
         return {
             "status": "CONGRATULATIONS",
             "message": "Congratulations! You have been shortlisted."
         }
     else:
-        candidate["status"] = "REGRET"
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE candidates SET status = ? WHERE email = ?",
+                ("REGRET", email),
+            )
         return {
             "status": "REGRET",
             "message": "Thank you for applying. Unfortunately, you were not shortlisted."

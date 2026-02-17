@@ -1,27 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   checkOaEligibility,
-  fetchOaQuestions,
-  submitOaAnswers,
   checkInterviewEligibility,
   fetchInterviewQuestions,
   submitInterviewAnswers,
+  checkCandidateStatus,
+  submitApplication,
 } from "../services/api";
 
-const OA_DURATION_SECONDS = 600;
 const INTERVIEW_DURATION_SECONDS = 600;
 
-function CandidateForm({ candidateData, role }) {
+function CandidateForm({ candidateData, role, hrId, jdData }) {
+  const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
   const [oaEligibility, setOaEligibility] = useState(null);
-  const [oaQuestions, setOaQuestions] = useState([]);
-  const [oaAnswers, setOaAnswers] = useState({});
-  const [oaStarted, setOaStarted] = useState(false);
   const [oaSubmitted, setOaSubmitted] = useState(false);
   const [oaResult, setOaResult] = useState(null);
   const [oaLoading, setOaLoading] = useState(false);
   const [oaError, setOaError] = useState("");
-  const [timeLeft, setTimeLeft] = useState(OA_DURATION_SECONDS);
+  const [oaChecking, setOaChecking] = useState(false);
   const [interviewEligibility, setInterviewEligibility] = useState(null);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [interviewAnswers, setInterviewAnswers] = useState({});
@@ -30,17 +28,14 @@ function CandidateForm({ candidateData, role }) {
   const [interviewResult, setInterviewResult] = useState(null);
   const [interviewLoading, setInterviewLoading] = useState(false);
   const [interviewError, setInterviewError] = useState("");
+  const [interviewChecking, setInterviewChecking] = useState(false);
   const [interviewTimeLeft, setInterviewTimeLeft] = useState(
     INTERVIEW_DURATION_SECONDS
   );
+  const [candidateStatus, setCandidateStatus] = useState(null);
+  const [statusError, setStatusError] = useState("");
 
-  const email = candidateData?.email || "";
-  const formattedOaTime = useMemo(() => {
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = timeLeft % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  }, [timeLeft]);
-
+  const email = localStorage.getItem("authEmail") || candidateData?.email || "";
   const formattedInterviewTime = useMemo(() => {
     const minutes = Math.floor(interviewTimeLeft / 60);
     const seconds = interviewTimeLeft % 60;
@@ -49,6 +44,7 @@ function CandidateForm({ candidateData, role }) {
 
   const loadEligibility = async () => {
     if (!email) return;
+    setOaChecking(true);
     setOaError("");
     try {
       const data = await checkOaEligibility(email);
@@ -63,11 +59,29 @@ function CandidateForm({ candidateData, role }) {
       }
     } catch (err) {
       setOaError("Unable to check OA eligibility right now.");
+    } finally {
+      setOaChecking(false);
+    }
+  };
+
+  const loadCandidateStatus = async () => {
+    if (!email) return;
+    setStatusError("");
+    try {
+      const data = await checkCandidateStatus(email);
+      if (data?.error) {
+        setStatusError(data.error);
+        return;
+      }
+      setCandidateStatus(data);
+    } catch (err) {
+      setStatusError("Unable to fetch status right now.");
     }
   };
 
   const loadInterviewEligibility = async () => {
     if (!email) return;
+    setInterviewChecking(true);
     setInterviewError("");
     try {
       const data = await checkInterviewEligibility(email);
@@ -85,49 +99,35 @@ function CandidateForm({ candidateData, role }) {
       }
     } catch (err) {
       setInterviewError("Unable to check interview eligibility right now.");
+    } finally {
+      setInterviewChecking(false);
     }
   };
 
   const handleSubmit = async () => {
     const payload = {
       name: candidateData.name || "",
-      email: candidateData.email || "",
+      email: email || "",
       phone: candidateData.phone || "",
       skills: candidateData.skills || [],
       education: candidateData.education || [],
       resume_text: candidateData.resume_text || "",
       role: role,
+      hr_id: hrId,
+      jd_text: jdData?.jd_text || "",
+      jd_filename: jdData?.jd_filename || "",
     };
-
-    const response = await fetch("http://127.0.0.1:8000/application/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (response.ok) {
+    try {
+      await submitApplication(payload);
+      localStorage.setItem("candidateRole", role);
       setSubmitted(true);
       loadEligibility();
       loadInterviewEligibility();
-    } else {
+      loadCandidateStatus();
+    } catch (err) {
       alert("Submission failed");
     }
   };
-
-  useEffect(() => {
-    if (!oaStarted || oaSubmitted) return;
-
-    if (timeLeft <= 0) {
-      handleOaSubmit(true);
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [oaStarted, oaSubmitted, timeLeft]);
 
   useEffect(() => {
     if (!interviewStarted || interviewSubmitted) return;
@@ -144,51 +144,21 @@ function CandidateForm({ candidateData, role }) {
     return () => clearInterval(timer);
   }, [interviewStarted, interviewSubmitted, interviewTimeLeft]);
 
+  useEffect(() => {
+    if (!email || !submitted) return;
+    loadCandidateStatus();
+    const interval = setInterval(loadCandidateStatus, 3000);
+    return () => clearInterval(interval);
+  }, [email, submitted]);
+
   const handleStartOa = async () => {
-    if (!oaEligibility?.eligible) return;
     setOaLoading(true);
     setOaError("");
     try {
-      const data = await fetchOaQuestions(role, email);
-      if (data.error) {
-        setOaError(data.error);
-        return;
-      }
-      setOaQuestions(data);
-      setOaStarted(true);
-      setTimeLeft(OA_DURATION_SECONDS);
+      localStorage.setItem("candidateRole", role);
+      navigate(`/oa/${role}`);
     } catch (err) {
-      setOaError("Failed to load OA questions.");
-    } finally {
-      setOaLoading(false);
-    }
-  };
-
-  const handleAnswerChange = (qid, value) => {
-    setOaAnswers((prev) => ({ ...prev, [qid]: value }));
-  };
-
-  const handleOaSubmit = async (auto = false) => {
-    if (oaSubmitted) return;
-    setOaLoading(true);
-    setOaError("");
-    try {
-      const payload = {
-        email,
-        role,
-        answers: oaAnswers,
-        auto_submit: auto,
-      };
-      const data = await submitOaAnswers(payload);
-      if (data.error) {
-        setOaError(data.error);
-        return;
-      }
-      setOaResult(data);
-      setOaSubmitted(true);
-      loadInterviewEligibility();
-    } catch (err) {
-      setOaError("OA submission failed.");
+      setOaError("Unable to start OA right now.");
     } finally {
       setOaLoading(false);
     }
@@ -248,6 +218,16 @@ function CandidateForm({ candidateData, role }) {
       <div className="stack">
         <h3 className="success">Application submitted successfully!</h3>
         <div className="card stack">
+          <h3>Application Status</h3>
+          {statusError && <p className="helper error">{statusError}</p>}
+          <p>
+            Status:{" "}
+            <strong>{candidateStatus?.status || "UNDER_REVIEW"}</strong>
+          </p>
+          {candidateStatus?.message && <p>{candidateStatus.message}</p>}
+          <p className="helper">Live status refreshes every 3 seconds.</p>
+        </div>
+        <div className="card stack">
           <h3>Online Assessment (MCQ)</h3>
           <p>
             The assessment unlocks only after HR shortlists you. Check back
@@ -256,64 +236,21 @@ function CandidateForm({ candidateData, role }) {
 
           {oaError && <p className="helper error">{oaError}</p>}
 
-          {!oaEligibility && (
-            <button className="btn secondary" onClick={loadEligibility}>
-              Check OA Availability
-            </button>
-          )}
-
-          {oaEligibility && !oaEligibility.eligible && (
+          {!oaSubmitted && oaEligibility?.eligible && (
             <div className="stack">
-              <p>Status: Not shortlisted yet.</p>
-              <button className="btn secondary" onClick={loadEligibility}>
-                Refresh Status
-              </button>
-            </div>
-          )}
-
-          {oaEligibility?.eligible && !oaSubmitted && (
-            <div className="stack">
-              <p>Status: Shortlisted — OA is ready.</p>
+              <p>Status: OA is ready.</p>
               <button
                 className="btn primary"
                 onClick={handleStartOa}
                 disabled={oaLoading}
               >
-                Start OA (10 minutes)
+                Start Quiz
               </button>
             </div>
           )}
 
-          {oaStarted && !oaSubmitted && (
-            <div className="stack">
-              <div className="helper">
-                Time left: <strong>{formattedOaTime}</strong>
-              </div>
-              {oaQuestions.map((q) => (
-                <div key={q.id} className="stack">
-                  <strong>{q.question}</strong>
-                  {q.options.map((opt) => (
-                    <label key={opt}>
-                      <input
-                        type="radio"
-                        name={`q-${q.id}`}
-                        value={opt}
-                        checked={oaAnswers[q.id] === opt}
-                        onChange={() => handleAnswerChange(q.id, opt)}
-                      />{" "}
-                      {opt}
-                    </label>
-                  ))}
-                </div>
-              ))}
-              <button
-                className="btn primary"
-                onClick={() => handleOaSubmit(false)}
-                disabled={oaLoading}
-              >
-                Submit OA
-              </button>
-            </div>
+          {!oaSubmitted && !oaEligibility?.eligible && (
+            <p>Status: Waiting for HR shortlist to unlock OA.</p>
           )}
 
           {oaSubmitted && oaResult && (
@@ -325,9 +262,7 @@ function CandidateForm({ candidateData, role }) {
               <p>
                 Result: <strong>{oaResult.status}</strong>
               </p>
-              <button className="btn secondary" onClick={loadEligibility}>
-                Refresh Status
-              </button>
+              <p>Decision pending from HR. Interview will unlock after HR approval.</p>
             </div>
           )}
         </div>
@@ -341,24 +276,13 @@ function CandidateForm({ candidateData, role }) {
           {interviewError && <p className="helper error">{interviewError}</p>}
 
           {!interviewEligibility && (
-            <button
-              className="btn secondary"
-              onClick={loadInterviewEligibility}
-            >
-              Check Interview Availability
-            </button>
+            <p>
+              {interviewChecking ? "Checking eligibility..." : "Checking eligibility..."}
+            </p>
           )}
 
-          {interviewEligibility && !interviewEligibility.eligible && (
-            <div className="stack">
-              <p>Status: Interview locked. Pass the OA to unlock.</p>
-              <button
-                className="btn secondary"
-                onClick={loadInterviewEligibility}
-              >
-                Refresh Status
-              </button>
-            </div>
+          {!interviewEligibility?.eligible && !interviewSubmitted && (
+            <p>Status: Interview locked until HR confirms after OA.</p>
           )}
 
           {interviewEligibility?.eligible && !interviewSubmitted && (
@@ -408,12 +332,6 @@ function CandidateForm({ candidateData, role }) {
               <p>
                 Result: <strong>{interviewResult.status}</strong>
               </p>
-              <button
-                className="btn secondary"
-                onClick={loadInterviewEligibility}
-              >
-                Refresh Status
-              </button>
             </div>
           )}
         </div>
@@ -446,3 +364,4 @@ function CandidateForm({ candidateData, role }) {
 }
 
 export default CandidateForm;
+
