@@ -5,6 +5,7 @@ import {
   fetchInterviewQuestions,
   submitInterviewAnswers,
 } from "../services/api";
+import { bindAssessmentSecurity } from "../utils/assessmentSecurity";
 
 const TOTAL_DURATION_SECONDS = 10 * 60;
 
@@ -129,9 +130,9 @@ export default function InterviewTest() {
 
   useEffect(() => {
     if (loading || submitted || !eligible) return;
-
-    const handleVisibility = () => {
-      if (document.hidden && !submittedRef.current) {
+    return bindAssessmentSecurity({
+      submittedRef,
+      onTabSwitch: () => {
         setTabSwitches((prev) => {
           const next = prev + 1;
           setWarning(
@@ -142,11 +143,10 @@ export default function InterviewTest() {
           }
           return next;
         });
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+      },
+      onBlockedAction: (message) => setWarning(message),
+      onAutoSubmit: () => submitTest(true),
+    });
   }, [loading, submitted, eligible]);
 
   if (submitted) {

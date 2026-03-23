@@ -4,6 +4,7 @@ import re
 from app.data.interview_questions import INTERVIEW_QUESTIONS
 from app.db import get_conn
 from app.routes.auth import require_role
+from app.utils.keywords import derive_role_keywords
 
 router = APIRouter(prefix="/interview", tags=["Interview"])
 DEMO_INTERVIEW_ALWAYS_ON = os.getenv("DEMO_INTERVIEW_ALWAYS_ON", "1").strip().lower() in {
@@ -26,7 +27,7 @@ def _resolve_role_for_questions(role: str, candidate_role: str | None = None) ->
         return role
     if candidate_role and candidate_role in INTERVIEW_QUESTIONS:
         return candidate_role
-    return "python_dev"
+    return ""
 
 
 def _compact_text(value: str, max_len: int = 90) -> str:
@@ -104,13 +105,46 @@ def _build_personalized_questions(candidate) -> list[dict]:
     return questions
 
 
+def _build_generic_questions(role: str, candidate) -> list[dict]:
+    effective_role = (role or (candidate["role"] if candidate else "") or "this role").replace("_", " ")
+    jd_text = (candidate["jd_text"] or "") if candidate else ""
+    role_keywords = derive_role_keywords(role or effective_role, jd_text)
+    lead_keywords = role_keywords[:4] or ["problem solving", "communication", "delivery", "quality"]
+
+    return [
+        {
+            "question": (
+                f"What experience makes you a good fit for the {effective_role} role, "
+                f"especially around {', '.join(lead_keywords[:2])}?"
+            ),
+            "keywords": lead_keywords + ["experience", "impact", "ownership"],
+        },
+        {
+            "question": (
+                f"Tell us about a project where you used {', '.join(lead_keywords[2:4] or lead_keywords[:2])} "
+                "to solve a real problem."
+            ),
+            "keywords": lead_keywords + ["project", "solution", "result"],
+        },
+        {
+            "question": "How do you ensure quality, collaboration, and reliability while delivering work?",
+            "keywords": ["testing", "review", "communication", "monitoring", "quality", "delivery"],
+        },
+        {
+            "question": "Describe a technical challenge you faced recently and how you resolved it.",
+            "keywords": ["challenge", "debug", "approach", "result", "trade", "learning"],
+        },
+    ]
+
+
 def _resolve_question_set(candidate, role: str) -> list[dict]:
     effective_role = _resolve_role_for_questions(role, candidate["role"] if candidate else None)
     base_questions = INTERVIEW_QUESTIONS.get(effective_role, [])
     personalized = _build_personalized_questions(candidate)
+    generic = _build_generic_questions(role, candidate)
 
     if not base_questions:
-        merged = personalized
+        merged = personalized + generic
     else:
         replace_count = min(len(personalized), len(base_questions))
         merged = personalized + base_questions[replace_count:]

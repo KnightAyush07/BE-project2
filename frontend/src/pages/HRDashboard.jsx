@@ -647,6 +647,32 @@ function HRDashboard({ onLogout }) {
                     <strong>Next step:</strong>{" "}
                     {(getXaiForStage(selectedCandidate).next_steps || []).join(" ") || "-"}
                   </p>
+                  <p>
+                    <strong>Surrogate advance probability:</strong>{" "}
+                    {selectedCandidate?.xai?.model_explanations?.advance_probability ?? "-"}%
+                  </p>
+                  <p>
+                    <strong>SHAP top factors:</strong>{" "}
+                    {(
+                      selectedCandidate?.xai?.model_explanations?.shap_top_features || []
+                    )
+                      .map(
+                        (item) =>
+                          `${item.feature} (${item.direction}, impact ${item.impact})`
+                      )
+                      .join(" ") || "-"}
+                  </p>
+                  <p>
+                    <strong>LIME local rules:</strong>{" "}
+                    {(
+                      selectedCandidate?.xai?.model_explanations?.lime_local_rules || []
+                    )
+                      .map(
+                        (item) =>
+                          `${item.feature_rule} (${item.direction}, weight ${item.weight})`
+                      )
+                      .join(" ") || "-"}
+                  </p>
                 </>
               ) : (
                 <p>No XAI explanation available for this candidate yet.</p>

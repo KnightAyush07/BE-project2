@@ -5,7 +5,7 @@ from datetime import datetime
 
 from app.data.question_bank import QUESTION_BANK
 from app.db import from_json, get_conn, to_json
-from app.utils.keywords import JOB_KEYWORDS
+from app.utils.keywords import derive_role_keywords
 
 
 ROLE_AUGMENTED_QUESTIONS = {
@@ -194,7 +194,7 @@ def _hash_seed(value: str) -> int:
 
 
 def _build_focus_terms(role: str, jd_text: str, resume_text: str) -> set[str]:
-    focus = set(JOB_KEYWORDS.get(role, []))
+    focus = set(derive_role_keywords(role, jd_text))
     jd_tokens = _tokenize(jd_text)
     resume_tokens = _tokenize(resume_text)
     focus.update(term for term in jd_tokens if len(term) > 3)

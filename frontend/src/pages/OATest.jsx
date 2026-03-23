@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getOAQuestions, submitOATest } from "../services/api";
+import { bindAssessmentSecurity } from "../utils/assessmentSecurity";
 
 const TOTAL_DURATION_SECONDS = 20 * 60;
 
@@ -71,8 +72,9 @@ export default function OATest({ role: roleProp = "python_dev" }) {
   }, [timeLeft, submitted]);
 
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden && !submittedRef.current) {
+    return bindAssessmentSecurity({
+      submittedRef,
+      onTabSwitch: () => {
         setTabSwitches((prev) => {
           const next = prev + 1;
           setWarning(
@@ -83,20 +85,10 @@ export default function OATest({ role: roleProp = "python_dev" }) {
           }
           return next;
         });
-      }
-    };
-
-    const handleContextMenu = (event) => {
-      event.preventDefault();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    document.addEventListener("contextmenu", handleContextMenu);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      document.removeEventListener("contextmenu", handleContextMenu);
-    };
+      },
+      onBlockedAction: (message) => setWarning(message),
+      onAutoSubmit: () => submitTest(true),
+    });
   }, []);
 
   const answeredCount = useMemo(

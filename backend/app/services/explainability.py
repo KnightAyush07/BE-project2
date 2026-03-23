@@ -1,8 +1,9 @@
-from app.utils.keywords import JOB_KEYWORDS
+from app.utils.keywords import derive_role_keywords
+from app.services.model_explainers import explain_candidate_model
 
 
 def explain_ats(candidate_skills, role):
-    jd_skills = JOB_KEYWORDS.get(role, [])
+    jd_skills = derive_role_keywords(role)
 
     candidate_skills = [s.lower() for s in candidate_skills]
 
@@ -60,7 +61,7 @@ def _stage_summary(stage: str) -> str:
 
 def build_hr_xai(candidate: dict) -> dict:
     role = (candidate.get("role") or "").strip()
-    expected_skills = JOB_KEYWORDS.get(role, [])
+    expected_skills = derive_role_keywords(role, candidate.get("jd_text") or "")
     matched_skills = candidate.get("ats_matched_skills") or []
     missing_skills = candidate.get("ats_missing_skills") or []
     ats_score = round(_safe_number(candidate.get("ats_score")), 2)
@@ -76,6 +77,7 @@ def build_hr_xai(candidate: dict) -> dict:
     final_status = _status_label(candidate.get("status"))
     oa_status = _status_label(candidate.get("oa_status"), fallback="NOT_TAKEN")
     interview_status = _status_label(candidate.get("interview_status"), fallback="NOT_TAKEN")
+    model_explanations = explain_candidate_model(candidate)
 
     strengths = []
     concerns = []
@@ -170,6 +172,23 @@ def build_hr_xai(candidate: dict) -> dict:
             rationale,
         )
 
+    advance_probability = round(model_explanations.get("advance_probability", 0), 2)
+    if advance_probability >= 75:
+        _bullet(
+            f"Surrogate model estimates a strong advancement likelihood ({advance_probability}%).",
+            strengths,
+        )
+    elif advance_probability >= 55:
+        _bullet(
+            f"Surrogate model indicates a borderline advancement likelihood ({advance_probability}%).",
+            rationale,
+        )
+    else:
+        _bullet(
+            f"Surrogate model indicates limited advancement likelihood ({advance_probability}%).",
+            concerns,
+        )
+
     stage_payloads = {
         "resume": {
             "title": "Resume Screening XAI",
@@ -229,4 +248,5 @@ def build_hr_xai(candidate: dict) -> dict:
             "interview_tab_switches": interview_tab_switches,
         },
         "stages": stage_payloads,
+        "model_explanations": model_explanations,
     }
