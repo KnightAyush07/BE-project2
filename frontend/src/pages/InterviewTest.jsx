@@ -24,6 +24,8 @@ export default function InterviewTest() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [timeLeft, setTimeLeft] = useState(TOTAL_DURATION_SECONDS);
+  const [tabSwitches, setTabSwitches] = useState(0);
+  const [warning, setWarning] = useState("");
   const submittedRef = useRef(false);
 
   const formattedTime = useMemo(() => {
@@ -45,6 +47,7 @@ export default function InterviewTest() {
         email,
         role,
         answers,
+        tab_switches: tabSwitches,
         auto_submit: auto,
       });
       if (data?.error) {
@@ -124,6 +127,28 @@ export default function InterviewTest() {
     }
   }, [timeLeft, loading, submitted, eligible]);
 
+  useEffect(() => {
+    if (loading || submitted || !eligible) return;
+
+    const handleVisibility = () => {
+      if (document.hidden && !submittedRef.current) {
+        setTabSwitches((prev) => {
+          const next = prev + 1;
+          setWarning(
+            `Tab switch detected (${next}/3). Further switches will submit the interview.`
+          );
+          if (next >= 3) {
+            submitTest(true);
+          }
+          return next;
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [loading, submitted, eligible]);
+
   if (submitted) {
     return (
       <section className="page">
@@ -153,8 +178,14 @@ export default function InterviewTest() {
         <p>
           Time Left: <strong>{formattedTime}</strong>
         </p>
+        {tabSwitches > 0 && (
+          <p>
+            Tab switches: <strong>{tabSwitches}/3</strong>
+          </p>
+        )}
 
         {loading && <p>Loading interview...</p>}
+        {warning && <p className="helper error">{warning}</p>}
         {error && <p className="helper error">{error}</p>}
         {!loading && !eligible && !error && (
           <p>Interview is not available for this profile yet.</p>

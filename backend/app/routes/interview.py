@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 import os
+import re
 from app.data.interview_questions import INTERVIEW_QUESTIONS
 from app.db import get_conn
 from app.routes.auth import require_role
@@ -26,6 +27,104 @@ def _resolve_role_for_questions(role: str, candidate_role: str | None = None) ->
     if candidate_role and candidate_role in INTERVIEW_QUESTIONS:
         return candidate_role
     return "python_dev"
+
+
+def _compact_text(value: str, max_len: int = 90) -> str:
+    cleaned = re.sub(r"\s+", " ", (value or "")).strip(" -:|,.;")
+    if len(cleaned) <= max_len:
+        return cleaned
+    return cleaned[: max_len - 3].rstrip() + "..."
+
+
+def _extract_resume_highlights(resume_text: str) -> tuple[str, str]:
+    project_line = ""
+    internship_line = ""
+    if not resume_text:
+        return project_line, internship_line
+
+    lines = [re.sub(r"\s+", " ", line).strip() for line in resume_text.splitlines()]
+    lines = [line for line in lines if 12 <= len(line) <= 180]
+
+    for line in lines:
+        low = line.lower()
+        if (
+            not project_line
+            and any(token in low for token in ["project", "built", "developed", "implemented", "created"])
+        ):
+            project_line = _compact_text(line)
+        if (
+            not internship_line
+            and any(token in low for token in ["internship", "intern", "trainee"])
+        ):
+            internship_line = _compact_text(line)
+        if project_line and internship_line:
+            break
+
+    return project_line, internship_line
+
+
+def _build_personalized_questions(candidate) -> list[dict]:
+    name = (candidate["name"] or "").strip() if candidate else ""
+    greeting_name = name or "there"
+    resume_text = (candidate["resume_text"] or "") if candidate else ""
+    project_line, internship_line = _extract_resume_highlights(resume_text)
+
+    questions = []
+    if project_line:
+        questions.append(
+            {
+                "question": (
+                    f"Hi {greeting_name}, in your project '{project_line}', "
+                    "what was your design approach and biggest technical trade-off?"
+                ),
+                "keywords": ["design", "architecture", "trade", "decision", "scale", "performance"],
+            }
+        )
+    if internship_line:
+        questions.append(
+            {
+                "question": (
+                    f"In your internship experience '{internship_line}', "
+                    "what problem did you solve and how did you measure impact?"
+                ),
+                "keywords": ["problem", "solution", "impact", "metric", "result", "ownership"],
+            }
+        )
+    if not questions:
+        questions.append(
+            {
+                "question": (
+                    f"Hi {greeting_name}, please summarize one project or internship where "
+                    "you solved a real problem end-to-end."
+                ),
+                "keywords": ["problem", "approach", "result", "impact", "learning", "ownership"],
+            }
+        )
+
+    return questions
+
+
+def _resolve_question_set(candidate, role: str) -> list[dict]:
+    effective_role = _resolve_role_for_questions(role, candidate["role"] if candidate else None)
+    base_questions = INTERVIEW_QUESTIONS.get(effective_role, [])
+    personalized = _build_personalized_questions(candidate)
+
+    if not base_questions:
+        merged = personalized
+    else:
+        replace_count = min(len(personalized), len(base_questions))
+        merged = personalized + base_questions[replace_count:]
+
+    resolved = []
+    for index, q in enumerate(merged, start=1):
+        resolved.append(
+            {
+                "id": index,
+                "question": q["question"],
+                "keywords": q.get("keywords", []),
+            }
+        )
+    return resolved
 
 
 @router.get("/eligibility")
@@ -63,8 +162,7 @@ def get_questions(role: str, email: str, user=Depends(require_role("CANDIDATE"))
     if not candidate["interview_eligible"] and not demo_unlocked:
         return {"error": "Interview not available for this candidate yet"}
 
-    effective_role = _resolve_role_for_questions(role, candidate["role"])
-    questions = INTERVIEW_QUESTIONS.get(effective_role, [])
+    questions = _resolve_question_set(candidate, role)
     if not questions:
         return {"error": "No interview questions configured"}
 
@@ -91,6 +189,7 @@ def submit_answers(payload: dict, user=Depends(require_role("CANDIDATE"))):
     role = payload.get("role")
     answers = payload.get("answers", {})
     email = payload.get("email")
+    tab_switches = max(0, int(payload.get("tab_switches", 0) or 0))
 
     if email.lower() != user["email"].lower():
         raise HTTPException(status_code=403, detail="Email mismatch")
@@ -106,8 +205,7 @@ def submit_answers(payload: dict, user=Depends(require_role("CANDIDATE"))):
     if not candidate["interview_eligible"] and not demo_unlocked:
         return {"error": "Interview not available for this candidate yet"}
 
-    effective_role = _resolve_role_for_questions(role, candidate["role"])
-    questions = INTERVIEW_QUESTIONS.get(effective_role, [])
+    questions = _resolve_question_set(candidate, role)
     if not questions:
         return {"error": "No interview questions configured"}
 
@@ -125,14 +223,15 @@ def submit_answers(payload: dict, user=Depends(require_role("CANDIDATE"))):
         cur.execute(
             """
             UPDATE candidates
-            SET interview_score = ?, interview_percentage = ?, interview_status = ?
+            SET interview_score = ?, interview_percentage = ?, interview_status = ?, interview_tab_switches = ?
             WHERE email = ?
             """,
-            (round(total_score, 2), percentage, status, email),
+            (round(total_score, 2), percentage, status, tab_switches, email),
         )
 
     return {
         "score": round(total_score, 2),
         "percentage": percentage,
         "status": status,
+        "tab_switches": tab_switches,
     }

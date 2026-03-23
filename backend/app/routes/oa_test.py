@@ -48,16 +48,7 @@ def check_eligibility(email: str, user=Depends(require_role("CANDIDATE"))):
         raise HTTPException(status_code=403, detail="Email mismatch")
     candidate = _find_candidate(email)
     if not candidate:
-        if DEMO_OA_ALWAYS_ON:
-            return {
-                "eligible": True,
-                "role": "python_dev",
-                "oa_status": "NOT_TAKEN",
-                "oa_score": None,
-                "oa_total": None,
-                "oa_percentage": None,
-            }
-        return {"error": "Candidate not found"}
+        return {"error": "No application was submitted", "eligible": False}
 
     eligible = bool(candidate["oa_eligible"]) or DEMO_OA_ALWAYS_ON
     return {
@@ -114,6 +105,7 @@ def submit_test(payload: dict, user=Depends(require_role("CANDIDATE"))):
     role = payload.get("role")
     answers = payload.get("answers", {})
     time_taken = payload.get("time_taken", 0)
+    tab_switches = max(0, int(payload.get("tab_switches", 0) or 0))
 
     if not email:
         return {"error": "Email is required"}
@@ -174,7 +166,7 @@ def submit_test(payload: dict, user=Depends(require_role("CANDIDATE"))):
                 """
                 UPDATE candidates
                 SET oa_score = ?, oa_total = ?, oa_percentage = ?, oa_status = ?,
-                    oa_topic_breakdown = ?, interview_eligible = 0, oa_eligible = 1, status = ?
+                    oa_tab_switches = ?, oa_topic_breakdown = ?, interview_eligible = 0, oa_eligible = 1, status = ?
                 WHERE email = ?
                 """,
                 (
@@ -182,6 +174,7 @@ def submit_test(payload: dict, user=Depends(require_role("CANDIDATE"))):
                     total,
                     percentage,
                     status,
+                    tab_switches,
                     to_json(topic_breakdown),
                     "UNDER_REVIEW",
                     email,
@@ -193,6 +186,7 @@ def submit_test(payload: dict, user=Depends(require_role("CANDIDATE"))):
         "total": total,
         "percentage": percentage,
         "status": status,
+        "tab_switches": tab_switches,
         "topic_breakdown": topic_breakdown,
         "demo_mode": bool(not candidate and DEMO_OA_ALWAYS_ON),
     }

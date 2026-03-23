@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.db import get_conn, from_json
 from app.routes.auth import require_role
 from app.services.resume_parser import extract_resume_text
+from app.services.explainability import build_hr_xai
 
 router = APIRouter()
 
@@ -170,6 +171,7 @@ def get_all_candidates(user=Depends(require_role("HR"))):
         record["ats_matched_skills"] = from_json(record.get("ats_matched_skills"), [])
         record["ats_missing_skills"] = from_json(record.get("ats_missing_skills"), [])
         record["oa_topic_breakdown"] = from_json(record.get("oa_topic_breakdown"), {})
+        record["xai"] = build_hr_xai(record)
         response.append(record)
 
     return response

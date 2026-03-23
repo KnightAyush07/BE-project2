@@ -91,10 +91,12 @@ def init_db():
                 oa_total INTEGER,
                 oa_percentage REAL,
                 oa_status TEXT,
+                oa_tab_switches INTEGER NOT NULL DEFAULT 0,
                 oa_topic_breakdown TEXT,
                 interview_score INTEGER,
                 interview_percentage REAL,
                 interview_status TEXT,
+                interview_tab_switches INTEGER NOT NULL DEFAULT 0,
                 submitted_at TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id),
                 FOREIGN KEY(hr_id) REFERENCES hr_profiles(id)
@@ -145,6 +147,8 @@ def init_db():
             {
                 "jd_text": "TEXT",
                 "jd_filename": "TEXT",
+                "oa_tab_switches": "INTEGER NOT NULL DEFAULT 0",
+                "interview_tab_switches": "INTEGER NOT NULL DEFAULT 0",
             },
         )
         _ensure_columns(

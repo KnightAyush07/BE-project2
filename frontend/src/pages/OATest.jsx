@@ -134,6 +134,7 @@ export default function OATest({ role: roleProp = "python_dev" }) {
         role,
         answers,
         time_taken,
+        tab_switches: tabSwitches,
         ...(hr_id ? { hr_id } : {}),
         auto_submit: auto,
       });

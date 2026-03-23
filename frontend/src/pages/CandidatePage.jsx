@@ -18,9 +18,7 @@ function CandidatePage() {
   const [authEmail, setAuthEmail] = useState(
     localStorage.getItem("authEmail") || ""
   );
-  const [authName, setAuthName] = useState(
-    localStorage.getItem("authName") || ""
-  );
+  const [authName, setAuthName] = useState(localStorage.getItem("authName") || "");
   const [authToken, setAuthToken] = useState(
     localStorage.getItem("authToken") || ""
   );
@@ -141,11 +139,13 @@ function CandidatePage() {
     setCandidateStatus(null);
   };
 
+  const isCandidateLoggedIn = authToken && authRole === "CANDIDATE";
+
   return (
-    <div className="page">
-      {!authToken || authRole !== "CANDIDATE" ? (
-        <div className="card stack">
-          <h3>Candidate Login</h3>
+    <div className={`page ${isCandidateLoggedIn ? "" : "centered"}`.trim()}>
+      {!isCandidateLoggedIn ? (
+        <div className="card stack auth-card">
+          <h3>Candidate Login / Register</h3>
           {authError && <p className="helper error">{authError}</p>}
           <div className="form-row">
             <label>Email</label>
@@ -166,7 +166,7 @@ function CandidatePage() {
             />
           </div>
           <div className="form-row">
-            <label>Full Name (for registration)</label>
+            <label>Full Name (for register)</label>
             <input
               type="text"
               value={authName}
@@ -194,7 +194,7 @@ function CandidatePage() {
         </div>
       )}
 
-      {authToken && authRole === "CANDIDATE" && (
+      {isCandidateLoggedIn && (
         <>
           <div className="card stack">
             <h3>Application Status</h3>
@@ -210,24 +210,24 @@ function CandidatePage() {
           <div className="card stack">
             {loadingEligibility ? (
               <p>Checking eligibility...</p>
+            ) : !hasApplication ? (
+              <p>Upload resume and submit application first to unlock OA.</p>
             ) : interviewStatus === "PASS" || interviewStatus === "FAIL" ? (
               <p>
                 Interview completed. Status: <strong>{interviewStatus}</strong>.
               </p>
-            ) : interviewEligible ? (
+            ) : oaEligible && oaStatus === "NOT_TAKEN" ? (
               <div className="stack">
-                <p>
-                  HR has confirmed your profile. Interview is now available.
-                </p>
+                <p>Online assessment is available in this stage.</p>
                 <button
                   className="btn primary"
-                  onClick={() => navigate(`/interview/${candidateRole}`)}
+                  onClick={() => navigate(`/oa/${candidateRole}`)}
                 >
-                  Start Online Text AI Interview
+                  Start OA (MCQ)
                 </button>
               </div>
-            ) : oaEligible && oaStatus === "NOT_TAKEN" ? (
-              <p>Online assessment is available in this stage.</p>
+            ) : !oaEligible && oaStatus === "NOT_TAKEN" ? (
+              <p>OA is not available yet.</p>
             ) : oaStatus === "PASS" || oaStatus === "FAIL" ? (
               <div className="stack">
                 <p>OA submitted. You can continue to the text AI interview now.</p>
@@ -236,6 +236,16 @@ function CandidatePage() {
                   onClick={() => navigate(`/interview/${candidateRole}`)}
                 >
                   Start Interview
+                </button>
+              </div>
+            ) : interviewEligible ? (
+              <div className="stack">
+                <p>Interview is available.</p>
+                <button
+                  className="btn primary"
+                  onClick={() => navigate(`/interview/${candidateRole}`)}
+                >
+                  Start Online Text AI Interview
                 </button>
               </div>
             ) : (

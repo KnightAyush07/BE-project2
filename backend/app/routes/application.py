@@ -73,8 +73,10 @@ def submit_application(data: ApplicationRequest, user=Depends(require_role("CAND
                     ats_matched_skills = ?, ats_missing_skills = ?, status = ?,
                     oa_eligible = 0, interview_eligible = 0, oa_score = NULL,
                     oa_total = NULL, oa_percentage = NULL, oa_status = 'NOT_TAKEN',
+                    oa_tab_switches = 0,
                     oa_topic_breakdown = ?, interview_score = NULL,
                     interview_percentage = NULL, interview_status = 'NOT_TAKEN',
+                    interview_tab_switches = 0,
                     submitted_at = ?
                 WHERE user_id = ?
                 """,
@@ -106,9 +108,9 @@ def submit_application(data: ApplicationRequest, user=Depends(require_role("CAND
                     user_id, hr_id, name, email, phone, skills, education, resume_text,
                     jd_text, jd_filename, role, status, oa_eligible, interview_eligible,
                     ats_score, ats_match_percent, ats_matched_skills, ats_missing_skills,
-                    oa_score, oa_total, oa_percentage, oa_status, oa_topic_breakdown,
-                    interview_score, interview_percentage, interview_status, submitted_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, NULL, NULL, NULL, 'NOT_TAKEN', ?, NULL, NULL, 'NOT_TAKEN', ?)
+                    oa_score, oa_total, oa_percentage, oa_status, oa_tab_switches, oa_topic_breakdown,
+                    interview_score, interview_percentage, interview_status, interview_tab_switches, submitted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, NULL, NULL, NULL, 'NOT_TAKEN', 0, ?, NULL, NULL, 'NOT_TAKEN', 0, ?)
                 """,
                 (
                     user["id"],

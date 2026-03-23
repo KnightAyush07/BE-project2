@@ -52,6 +52,16 @@ function HRDashboard({ onLogout }) {
     return items.join(", ");
   };
 
+  const formatStageLabel = (stage) => {
+    const labels = {
+      resume: "Resume Screening",
+      oa: "OA Review",
+      interview: "Interview Review",
+      final: "Final Decision",
+    };
+    return labels[stage] || "Hiring Review";
+  };
+
   const getStatusClass = (status) => {
     if (!status) return "status-pill status-pending";
     const normalized = status.toLowerCase().replace(/[\s_]+/g, "-");
@@ -302,6 +312,16 @@ function HRDashboard({ onLogout }) {
     return "No candidates are available in this stage.";
   };
 
+  const getXaiForStage = (candidate) => {
+    const stages = candidate?.xai?.stages || {};
+    return stages[activeStage] || stages.final || null;
+  };
+
+  const getStageRecommendation = (candidate) => {
+    const stageXai = getXaiForStage(candidate);
+    return stageXai?.recommendation || "REVIEW";
+  };
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -457,7 +477,9 @@ function HRDashboard({ onLogout }) {
               <th>ATS Score</th>
               <th>Skills Matched</th>
               <th>OA Score</th>
+              <th>OA Tab Switches</th>
               <th>Interview Status</th>
+              <th>Interview Tab Switches</th>
               <th>Final Status</th>
               <th>XAI</th>
               <th>Actions</th>
@@ -466,12 +488,12 @@ function HRDashboard({ onLogout }) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8}>Loading candidates...</td>
+                <td colSpan={10}>Loading candidates...</td>
               </tr>
             )}
             {!loading && stageCandidates.length === 0 && (
               <tr>
-                <td colSpan={8}>{getStageEmptyMessage()}</td>
+                <td colSpan={10}>{getStageEmptyMessage()}</td>
               </tr>
             )}
             {!loading &&
@@ -485,11 +507,13 @@ function HRDashboard({ onLogout }) {
                       ? `${candidate.oa_score}/${candidate.oa_total}`
                       : "-"}
                   </td>
+                  <td>{candidate.oa_tab_switches ?? 0}</td>
                   <td>
                     <span className={getStatusClass(candidate.interview_status)}>
                       {candidate.interview_status || "NOT_TAKEN"}
                     </span>
                   </td>
+                  <td>{candidate.interview_tab_switches ?? 0}</td>
                   <td>
                     <span className={getStatusClass(candidate.status)}>
                       {candidate.status || "PENDING"}
@@ -497,7 +521,7 @@ function HRDashboard({ onLogout }) {
                   </td>
                   <td>
                     <button className="btn secondary" onClick={() => setSelectedCandidate(candidate)}>
-                      View XAI
+                      {getStageRecommendation(candidate)}
                     </button>
                   </td>
                   <td>
@@ -583,18 +607,50 @@ function HRDashboard({ onLogout }) {
                   : "-"}
               </p>
               <p><strong>OA Status:</strong> {selectedCandidate.oa_status || "NOT_TAKEN"}</p>
+              <p><strong>OA Tab Switches:</strong> {selectedCandidate.oa_tab_switches ?? 0}</p>
             </section>
 
             <section>
               <h4>Interview Details</h4>
               <p><strong>Interview Score:</strong> {selectedCandidate.interview_score ?? "-"}</p>
               <p><strong>Interview Status:</strong> {selectedCandidate.interview_status || "NOT_TAKEN"}</p>
+              <p><strong>Interview Tab Switches:</strong> {selectedCandidate.interview_tab_switches ?? 0}</p>
             </section>
 
             <section>
               <h4>XAI Snapshot</h4>
-              <p>Why shortlisted now: ATS matched skills and score trends are shown above.</p>
-              <p>XAI deep explanation model can be plugged here in the next step.</p>
+              {getXaiForStage(selectedCandidate) ? (
+                <>
+                  <p>
+                    <strong>Stage:</strong> {formatStageLabel(activeStage)}
+                  </p>
+                  <p>
+                    <strong>Recommendation:</strong>{" "}
+                    {getXaiForStage(selectedCandidate).recommendation}
+                  </p>
+                  <p>
+                    <strong>Summary:</strong> {getXaiForStage(selectedCandidate).summary}
+                  </p>
+                  <p>
+                    <strong>Why this recommendation:</strong>{" "}
+                    {(getXaiForStage(selectedCandidate).rationale || []).join(" ") || "-"}
+                  </p>
+                  <p>
+                    <strong>Strengths:</strong>{" "}
+                    {(getXaiForStage(selectedCandidate).strengths || []).join(" ") || "-"}
+                  </p>
+                  <p>
+                    <strong>Concerns:</strong>{" "}
+                    {(getXaiForStage(selectedCandidate).concerns || []).join(" ") || "-"}
+                  </p>
+                  <p>
+                    <strong>Next step:</strong>{" "}
+                    {(getXaiForStage(selectedCandidate).next_steps || []).join(" ") || "-"}
+                  </p>
+                </>
+              ) : (
+                <p>No XAI explanation available for this candidate yet.</p>
+              )}
             </section>
           </div>
         )}
