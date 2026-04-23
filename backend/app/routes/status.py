@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from datetime import datetime, timedelta
-from app.db import get_conn
+from app.db import get_conn, clear_all_data
 
 router = APIRouter()
 
@@ -59,3 +59,9 @@ def check_status(email: str):
         "status": "UNDER_REVIEW",
         "message": "Your application is still under review"
     }
+
+
+@router.post("/clear-all-data")
+def clear_all_data_endpoint():
+    """Clear all HR and Candidate data from the database"""
+    return clear_all_data()

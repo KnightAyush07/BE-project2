@@ -182,3 +182,30 @@ def from_json(value, default=None):
         return json.loads(value)
     except json.JSONDecodeError:
         return default
+
+
+def clear_all_data():
+    """Clear all data from HR and Candidate tables"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        
+        # Disable foreign key constraints temporarily
+        cur.execute("PRAGMA foreign_keys = OFF")
+        
+        # Delete all data from tables in reverse dependency order
+        cur.execute("DELETE FROM sessions")
+        cur.execute("DELETE FROM oa_generated_quizzes")
+        cur.execute("DELETE FROM hr_job_descriptions")
+        cur.execute("DELETE FROM candidates")
+        cur.execute("DELETE FROM hr_profiles")
+        cur.execute("DELETE FROM users")
+        cur.execute("DELETE FROM companies")
+        
+        # Reset autoincrement counters
+        cur.execute("DELETE FROM sqlite_sequence")
+        
+        # Re-enable foreign key constraints
+        cur.execute("PRAGMA foreign_keys = ON")
+        
+        conn.commit()
+        return {"message": "All data cleared successfully"}
