@@ -1,5 +1,16 @@
 from app.utils.keywords import derive_role_keywords
-from app.services.model_explainers import explain_candidate_model
+
+try:
+    from app.services.model_explainers import explain_candidate_model
+except Exception:
+    def explain_candidate_model(candidate: dict) -> dict:
+        return {
+            "surrogate_model": "unavailable",
+            "target": "advance_probability",
+            "advance_probability": 0.0,
+            "shap_top_features": [],
+            "lime_local_rules": [],
+        }
 
 
 def explain_ats(candidate_skills, role):

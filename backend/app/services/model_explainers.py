@@ -120,11 +120,7 @@ def _normalize_shap_values(raw_values) -> np.ndarray:
     return values.reshape(-1)[: len(FEATURE_NAMES)]
 
 
-def explain_candidate_model(candidate: dict) -> dict:
-    model, shap_explainer, lime_explainer, _background = _explainer_bundle()
-    features = _feature_vector(candidate)
-    probability = float(model.predict_proba([features])[0][1])
-
+def _safe_shap_items(shap_explainer, features: np.ndarray) -> list[dict]:
     shap_values = shap_explainer.shap_values(np.array([features]), check_additivity=False)
     shap_vector = _normalize_shap_values(shap_values)
     shap_items = []
@@ -138,26 +134,57 @@ def explain_candidate_model(candidate: dict) -> dict:
             }
         )
     shap_items.sort(key=lambda item: abs(item["impact"]), reverse=True)
+    return shap_items[:4]
 
+
+def _safe_lime_items(lime_explainer, model, features: np.ndarray) -> list[dict]:
     lime_exp = lime_explainer.explain_instance(
         features,
         model.predict_proba,
         num_features=min(4, len(FEATURE_NAMES)),
         top_labels=1,
     )
-    lime_items = [
+    label = None
+    if getattr(lime_exp, "available_labels", None):
+        labels = lime_exp.available_labels()
+        if labels:
+            label = labels[0]
+    if label is None:
+        local_exp = getattr(lime_exp, "local_exp", {}) or {}
+        if local_exp:
+            label = next(iter(local_exp.keys()))
+
+    if label is None:
+        return []
+
+    return [
         {
             "feature_rule": rule,
             "weight": round(float(weight), 4),
             "direction": "positive" if float(weight) >= 0 else "negative",
         }
-        for rule, weight in lime_exp.as_list(label=1)
+        for rule, weight in lime_exp.as_list(label=label)
     ]
+
+
+def explain_candidate_model(candidate: dict) -> dict:
+    model, shap_explainer, lime_explainer, _background = _explainer_bundle()
+    features = _feature_vector(candidate)
+    probability = float(model.predict_proba([features])[0][1])
+    try:
+        shap_items = _safe_shap_items(shap_explainer, features)
+    except Exception:
+        shap_items = []
+
+    try:
+        lime_items = _safe_lime_items(lime_explainer, model, features)
+    except Exception:
+        lime_items = []
 
     return {
         "surrogate_model": "RandomForestClassifier",
         "target": "advance_probability",
         "advance_probability": round(probability * 100, 2),
-        "shap_top_features": shap_items[:4],
+        "shap_top_features": shap_items,
         "lime_local_rules": lime_items,
     }

@@ -322,4 +322,4 @@ def load_generated_quiz(candidate_email: str, role: str) -> list[dict]:
         row = cur.fetchone()
     if not row:
         return []
-    return from_json(row["questions_json"], [])
+    return from_json(row["questions_json"], [])    

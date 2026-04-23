@@ -14,6 +14,101 @@ class DecisionPayload(BaseModel):
     decision: str
 
 
+def _safe_number(value, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return float(default)
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _has_completed_full_process(candidate: dict) -> bool:
+    oa_status = (candidate.get("oa_status") or "").strip().upper()
+    interview_status = (candidate.get("interview_status") or "").strip().upper()
+    return oa_status in {"PASS", "FAIL"} and interview_status in {"PASS", "FAIL"}
+
+
+def _final_ranking_key(candidate: dict):
+    return (
+        -_safe_number(candidate.get("interview_percentage")),
+        -_safe_number(candidate.get("oa_percentage")),
+        -_safe_number(candidate.get("ats_score")),
+        _safe_number(candidate.get("interview_tab_switches")),
+        _safe_number(candidate.get("oa_tab_switches")),
+        candidate.get("submitted_at") or "",
+        candidate.get("id") or 0,
+    )
+
+
+def _fallback_xai(record: dict, error: Exception | None = None) -> dict:
+    status = (record.get("status") or "PENDING").strip().upper() or "PENDING"
+    summary = "Explainability is temporarily unavailable for this candidate."
+    if error:
+        summary = f"{summary} Review raw candidate scores instead."
+    return {
+        "current_status": status,
+        "signals": {
+            "ats_score": record.get("ats_score"),
+            "ats_match_percent": record.get("ats_match_percent"),
+            "matched_skills": record.get("ats_matched_skills") or [],
+            "missing_skills": record.get("ats_missing_skills") or [],
+            "oa_status": (record.get("oa_status") or "NOT_TAKEN").strip().upper(),
+            "oa_percentage": record.get("oa_percentage"),
+            "oa_tab_switches": record.get("oa_tab_switches") or 0,
+            "oa_topic_breakdown": record.get("oa_topic_breakdown") or {},
+            "interview_status": (record.get("interview_status") or "NOT_TAKEN").strip().upper(),
+            "interview_percentage": record.get("interview_percentage"),
+            "interview_tab_switches": record.get("interview_tab_switches") or 0,
+        },
+        "stages": {
+            "resume": {
+                "title": "Resume Screening XAI",
+                "summary": summary,
+                "recommendation": "REVIEW",
+                "strengths": [],
+                "concerns": [],
+                "rationale": ["ATS and stage metrics are still available in the table."],
+                "next_steps": ["Use the visible candidate scores to continue review."],
+            },
+            "oa": {
+                "title": "OA Review XAI",
+                "summary": summary,
+                "recommendation": "REVIEW",
+                "strengths": [],
+                "concerns": [],
+                "rationale": ["OA score and status remain available in the dashboard."],
+                "next_steps": ["Continue OA review using table data."],
+            },
+            "interview": {
+                "title": "Interview Review XAI",
+                "summary": summary,
+                "recommendation": "REVIEW",
+                "strengths": [],
+                "concerns": [],
+                "rationale": ["Interview outcome data remains available in the dashboard."],
+                "next_steps": ["Continue interview review using table data."],
+            },
+            "final": {
+                "title": "Final Hiring XAI",
+                "summary": summary,
+                "recommendation": status,
+                "strengths": [],
+                "concerns": [],
+                "rationale": ["Candidate pipeline data loaded without the explainer layer."],
+                "next_steps": ["Finalize status after reviewing available scores."],
+            },
+        },
+        "model_explanations": {
+            "surrogate_model": "unavailable",
+            "target": "advance_probability",
+            "advance_probability": 0.0,
+            "shap_top_features": [],
+            "lime_local_rules": [],
+        },
+    }
+
+
 @router.get("/list")
 def list_hr_profiles():
     with get_conn() as conn:
@@ -171,7 +266,10 @@ def get_all_candidates(user=Depends(require_role("HR"))):
         record["ats_matched_skills"] = from_json(record.get("ats_matched_skills"), [])
         record["ats_missing_skills"] = from_json(record.get("ats_missing_skills"), [])
         record["oa_topic_breakdown"] = from_json(record.get("oa_topic_breakdown"), {})
-        record["xai"] = build_hr_xai(record)
+        try:
+            record["xai"] = build_hr_xai(record)
+        except Exception as exc:
+            record["xai"] = _fallback_xai(record, exc)
         response.append(record)
 
     return response
@@ -226,30 +324,45 @@ def finalize_candidates(
     user=Depends(require_role("HR")),
 ):
     """
-    HR: Final selection after interview
+    HR: Final selection after full process completion
     """
     n = limit if limit is not None else top_n
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT candidates.id
+            SELECT candidates.*
             FROM candidates
             JOIN hr_profiles ON hr_profiles.id = candidates.hr_id
             WHERE hr_profiles.user_id = ? AND candidates.role = ?
-            ORDER BY candidates.ats_score DESC
-            LIMIT ?
             """,
-            (user["id"], role, n),
+            (user["id"], role),
         )
         rows = cur.fetchall()
-        candidate_ids = [row["id"] for row in rows]
-        cur.executemany(
-            "UPDATE candidates SET status = ? WHERE id = ?",
-            [("SELECTED", cid) for cid in candidate_ids],
-        )
 
-    return {"role": role, "selected_count": len(candidate_ids)}
+        completed_candidates = [row for row in rows if _has_completed_full_process(row)]
+        ranked_candidates = sorted(completed_candidates, key=_final_ranking_key)
+        selected_candidates = ranked_candidates[: max(0, n)]
+        selected_ids = [row["id"] for row in selected_candidates]
+        not_selected_ids = [row["id"] for row in ranked_candidates[max(0, n) :]]
+
+        if selected_ids:
+            cur.executemany(
+                "UPDATE candidates SET status = ? WHERE id = ?",
+                [("SELECTED", cid) for cid in selected_ids],
+            )
+        if not_selected_ids:
+            cur.executemany(
+                "UPDATE candidates SET status = ? WHERE id = ?",
+                [("REGRET", cid) for cid in not_selected_ids],
+            )
+
+    return {
+        "role": role,
+        "completed_candidates": len(ranked_candidates),
+        "selected_count": len(selected_ids),
+        "not_selected_count": len(not_selected_ids),
+    }
 
 
 @router.post("/decision")
