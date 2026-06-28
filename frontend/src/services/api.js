@@ -5,22 +5,41 @@ const getAuthHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+const handleUnauthorized = async (response) => {
+  if (response.status === 401 || response.status === 403) {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("authRole");
+    localStorage.removeItem("authName");
+    localStorage.removeItem("authEmail");
+  }
+  let message = "Request failed";
+  try {
+    const data = await response.json();
+    message = data.detail || data.error || message;
+  } catch {
+    // ignore parse errors
+  }
+  throw new Error(message);
+};
+
+const apiFetch = async (url, options = {}) => {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    await handleUnauthorized(response);
+  }
+  return response.json();
+};
+
 /* ------------------ CANDIDATE ------------------ */
 
 export async function uploadResume(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${BASE_URL}/candidate/upload-resume`, {
+  return apiFetch(`${BASE_URL}/candidate/upload-resume`, {
     method: "POST",
     body: formData,
   });
-
-  if (!response.ok) {
-    throw new Error("Resume upload failed");
-  }
-
-  return await response.json();
 }
 
 export async function uploadJobDescription(file) {
@@ -57,7 +76,7 @@ export async function uploadHrJobDescription(role, file) {
     try {
       const data = await response.json();
       message = data.detail || data.error || message;
-    } catch (err) {
+    } catch {
       // ignore parse errors
     }
     throw new Error(message);
@@ -78,7 +97,7 @@ export async function fetchHrJobDescription(hrId, role) {
     try {
       const data = await response.json();
       message = data.detail || data.error || message;
-    } catch (err) {
+    } catch {
       // ignore parse errors
     }
     throw new Error(message);
@@ -101,7 +120,7 @@ export async function registerCandidate(payload) {
     try {
       const data = await response.json();
       message = data.detail || data.error || message;
-    } catch (err) {
+    } catch {
       // ignore parse errors
     }
     throw new Error(message);
@@ -122,7 +141,7 @@ export async function registerHr(payload) {
     try {
       const data = await response.json();
       message = data.detail || data.error || message;
-    } catch (err) {
+    } catch {
       // ignore parse errors
     }
     throw new Error(message);
@@ -143,7 +162,7 @@ export async function loginUser(payload) {
     try {
       const data = await response.json();
       message = data.detail || data.error || message;
-    } catch (err) {
+    } catch {
       // ignore parse errors
     }
     throw new Error(message);
@@ -297,15 +316,15 @@ export async function submitOATest(payload) {
 
 export async function fetchAllCandidates(role) {
   const query = role ? `?role=${encodeURIComponent(role)}` : "";
-  const response = await fetch(`${BASE_URL}/hr/candidates${query}`, {
+  return apiFetch(`${BASE_URL}/hr/candidates${query}`, {
     headers: { ...getAuthHeaders() },
   });
+}
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch candidates");
-  }
-
-  return await response.json();
+export async function getCurrentUser() {
+  return apiFetch(`${BASE_URL}/auth/me`, {
+    headers: { ...getAuthHeaders() },
+  });
 }
 
 export async function shortlistCandidates(role, limit) {
@@ -329,6 +348,19 @@ export async function finalizeCandidates(role, limit) {
 
   if (!response.ok) {
     throw new Error("Final selection failed");
+  }
+
+  return await response.json();
+}
+
+export async function previewFinalize(role, limit) {
+  const response = await fetch(
+    `${BASE_URL}/hr/preview?role=${encodeURIComponent(role)}&limit=${encodeURIComponent(limit)}`,
+    { headers: { ...getAuthHeaders() } }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to preview final selection");
   }
 
   return await response.json();

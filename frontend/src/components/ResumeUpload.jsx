@@ -11,7 +11,7 @@ function ResumeUpload({ setCandidateData }) {
         ...(data.candidate_info || {}),
         resume_text: data.resume_text || "",
       });
-    } catch (error) {
+    } catch {
       alert("Error uploading resume");
     }
   };

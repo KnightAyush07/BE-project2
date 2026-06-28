@@ -12,17 +12,16 @@ const TOTAL_DURATION_SECONDS = 10 * 60;
 export default function InterviewTest() {
   const navigate = useNavigate();
   const { role: roleParam } = useParams();
-  const role = roleParam || localStorage.getItem("candidateRole") || "python_dev";
+  const role =
+    roleParam || localStorage.getItem("candidateRole") || "python_dev";
   const email = localStorage.getItem("authEmail") || "";
 
   const [eligible, setEligible] = useState(false);
-  const [status, setStatus] = useState("NOT_TAKEN");
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [timeLeft, setTimeLeft] = useState(TOTAL_DURATION_SECONDS);
   const [tabSwitches, setTabSwitches] = useState(0);
@@ -54,7 +53,6 @@ export default function InterviewTest() {
       if (data?.error) {
         throw new Error(data.error);
       }
-      setResult(data);
       setSubmitted(true);
     } catch (err) {
       submittedRef.current = false;
@@ -80,15 +78,11 @@ export default function InterviewTest() {
           return;
         }
 
-        const interviewStatus = (eligibility?.interview_status || "NOT_TAKEN").toUpperCase();
-        setStatus(interviewStatus);
-
+        const interviewStatus = (
+          eligibility?.interview_status || "NOT_TAKEN"
+        ).toUpperCase();
         if (interviewStatus === "PASS" || interviewStatus === "FAIL") {
           setSubmitted(true);
-          setResult({
-            percentage: eligibility?.interview_percentage ?? 0,
-            status: interviewStatus,
-          });
           return;
         }
 
@@ -136,7 +130,7 @@ export default function InterviewTest() {
         setTabSwitches((prev) => {
           const next = prev + 1;
           setWarning(
-            `Tab switch detected (${next}/3). Further switches will submit the interview.`
+            `Tab switch detected (${next}/3). Further switches will submit the interview.`,
           );
           if (next >= 3) {
             submitTest(true);
@@ -154,13 +148,11 @@ export default function InterviewTest() {
       <section className="page">
         <div className="card stack">
           <h2>Interview Submitted</h2>
-          <p>
-            Status: <strong>{result?.status || status}</strong>
-          </p>
-          <p>
-            Score: <strong>{result?.percentage ?? 0}%</strong>
-          </p>
-          <button className="btn secondary" onClick={() => navigate("/candidate")}>
+          <p>Interview completed. Please wait for HR to contact you.</p>
+          <button
+            className="btn secondary"
+            onClick={() => navigate("/candidate")}
+          >
             Back to Candidate Dashboard
           </button>
         </div>
@@ -203,7 +195,10 @@ export default function InterviewTest() {
                   rows={4}
                   value={answers[q.id] || ""}
                   onChange={(event) =>
-                    setAnswers((prev) => ({ ...prev, [q.id]: event.target.value }))
+                    setAnswers((prev) => ({
+                      ...prev,
+                      [q.id]: event.target.value,
+                    }))
                   }
                   placeholder="Write your answer here..."
                 />
@@ -217,7 +212,10 @@ export default function InterviewTest() {
               >
                 {submitting ? "Submitting..." : "Submit Interview"}
               </button>
-              <button className="btn secondary" onClick={() => navigate("/candidate")}>
+              <button
+                className="btn secondary"
+                onClick={() => navigate("/candidate")}
+              >
                 Cancel
               </button>
             </div>

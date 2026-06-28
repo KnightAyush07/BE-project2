@@ -31,13 +31,13 @@ def check_status(email: str):
         }
     if current_status in ("SELECTED", "CONGRATULATIONS"):
         return {
-            "status": "CONGRATULATIONS",
-            "message": "Congratulations! You have been shortlisted."
+            "status": "SELECTED",
+            "message": "Congratulations! You have been selected as a top candidate!"
         }
     if current_status == "REGRET":
         return {
             "status": "REGRET",
-            "message": "Thank you for applying. Unfortunately, you were not shortlisted."
+            "message": "Thank you for applying. Unfortunately, you were not selected."
         }
 
     time_passed = datetime.utcnow() - datetime.fromisoformat(candidate["submitted_at"])

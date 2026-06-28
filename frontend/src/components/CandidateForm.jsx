@@ -57,7 +57,7 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
         setOaResult(data);
         setOaSubmitted(true);
       }
-    } catch (err) {
+    } catch {
       setOaError("Unable to check OA eligibility right now.");
     } finally {
       setOaChecking(false);
@@ -74,7 +74,7 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
         return;
       }
       setCandidateStatus(data);
-    } catch (err) {
+    } catch {
       setStatusError("Unable to fetch status right now.");
     }
   };
@@ -97,7 +97,7 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
         setInterviewResult(data);
         setInterviewSubmitted(true);
       }
-    } catch (err) {
+    } catch {
       setInterviewError("Unable to check interview eligibility right now.");
     } finally {
       setInterviewChecking(false);
@@ -124,7 +124,7 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
       loadEligibility();
       loadInterviewEligibility();
       loadCandidateStatus();
-    } catch (err) {
+    } catch {
       alert("Submission failed");
     }
   };
@@ -157,7 +157,7 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
     try {
       localStorage.setItem("candidateRole", role);
       navigate(`/oa/${role}`);
-    } catch (err) {
+    } catch {
       setOaError("Unable to start OA right now.");
     } finally {
       setOaLoading(false);
@@ -177,7 +177,7 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
       setInterviewQuestions(data);
       setInterviewStarted(true);
       setInterviewTimeLeft(INTERVIEW_DURATION_SECONDS);
-    } catch (err) {
+    } catch {
       setInterviewError("Failed to load interview questions.");
     } finally {
       setInterviewLoading(false);
@@ -206,7 +206,7 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
       }
       setInterviewResult(data);
       setInterviewSubmitted(true);
-    } catch (err) {
+    } catch {
       setInterviewError("Interview submission failed.");
     } finally {
       setInterviewLoading(false);
@@ -250,7 +250,12 @@ function CandidateForm({ candidateData, role, hrId, jdData }) {
           )}
 
           {!oaSubmitted && !oaEligibility?.eligible && (
-            <p>Status: Waiting for HR shortlist to unlock OA.</p>
+            <p>
+              Status:{" "}
+              {oaChecking
+                ? "Checking OA eligibility..."
+                : "Waiting for HR shortlist to unlock OA."}
+            </p>
           )}
 
           {oaSubmitted && oaResult && (

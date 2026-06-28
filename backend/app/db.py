@@ -158,6 +158,13 @@ def init_db():
                 "company_id": "INTEGER",
             },
         )
+        _ensure_columns(
+            conn,
+            "candidates",
+            {
+                "visible_to_candidate": "INTEGER NOT NULL DEFAULT 0",
+            },
+        )
 
 
 def _ensure_columns(conn, table: str, columns: dict):
@@ -209,3 +216,37 @@ def clear_all_data():
         
         conn.commit()
         return {"message": "All data cleared successfully"}
+
+
+def clear_candidate_data():
+    """Clear only candidate-related data while preserving HR accounts."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+
+        # Temporarily disable foreign key enforcement to allow cascading deletes
+        cur.execute("PRAGMA foreign_keys = OFF")
+
+        # Delete sessions belonging to candidate users
+        cur.execute(
+            "DELETE FROM sessions WHERE user_id IN (SELECT user_id FROM candidates)"
+        )
+
+        # Delete any OA quizzes generated for candidate emails
+        cur.execute(
+            "DELETE FROM oa_generated_quizzes WHERE candidate_email IN (SELECT email FROM candidates)"
+        )
+
+        # Delete candidate user accounts before removing the rows that identify them.
+        cur.execute(
+            "DELETE FROM users WHERE id IN (SELECT user_id FROM candidates)"
+        )
+
+        # Delete candidate rows
+        cur.execute("DELETE FROM candidates")
+
+        # Optionally reset autoincrement entries for affected tables
+        cur.execute("DELETE FROM sqlite_sequence WHERE name IN ('candidates','oa_generated_quizzes','sessions','users')")
+
+        cur.execute("PRAGMA foreign_keys = ON")
+        conn.commit()
+        return {"message": "Candidate data cleared successfully"}

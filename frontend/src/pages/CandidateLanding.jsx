@@ -7,7 +7,6 @@ function CandidateLanding() {
   const [candidateData, setCandidateData] = useState(null);
   const [role, setRole] = useState("");
   const [jdData, setJdData] = useState(null);
-  const [hrIdForRole, setHrIdForRole] = useState("");
   const [hrError, setHrError] = useState("");
   const [jdError, setJdError] = useState("");
   const [roleCatalog, setRoleCatalog] = useState([]);
@@ -18,7 +17,7 @@ function CandidateLanding() {
       try {
         const roleData = await fetchHrRoles();
         setRoleCatalog(Array.isArray(roleData) ? roleData : []);
-      } catch (err) {
+      } catch {
         setHrError("Hiring setup is not available right now. Please try again shortly.");
       }
     };
@@ -32,15 +31,7 @@ function CandidateLanding() {
   ));
 
   const selectedRoleEntry = roleCatalog.find((item) => item.role === role);
-  const resolvedHrId = selectedRoleEntry ? String(selectedRoleEntry.hr_id) : "";
-
-  useEffect(() => {
-    if (!role) {
-      setHrIdForRole("");
-      return;
-    }
-    setHrIdForRole(resolvedHrId);
-  }, [role, resolvedHrId]);
+  const hrIdForRole = selectedRoleEntry ? String(selectedRoleEntry.hr_id) : "";
 
   useEffect(() => {
     if (hrIdForRole) {
@@ -64,7 +55,7 @@ function CandidateLanding() {
           jd_text: data.jd_text || "",
           jd_filename: data.jd_filename || "",
         });
-      } catch (err) {
+      } catch {
         setJdData(null);
         setJdError(
           "Selected HR has not uploaded JD for this role yet. Please choose another HR or role."

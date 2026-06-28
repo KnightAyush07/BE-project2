@@ -11,7 +11,7 @@ function JdUpload({ setJdData }) {
         jd_text: data.jd_text || "",
         jd_filename: data.jd_filename || file.name,
       });
-    } catch (error) {
+    } catch {
       alert("Error uploading JD");
     }
   };

@@ -1,15 +1,15 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Sora:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg: #f4f6f4;
-  --bg-glow: #e6ede8;
+  --bg: #ffffff;
+  --bg-glow: #ffffff;
   --surface: #ffffff;
   --surface-2: #f6faf7;
   --card: #ffffff;
   --text: #0f172a;
   --muted: #475569;
-  --accent: #0f766e;
-  --accent-2: #22c55e;
+  --accent: #2563eb;
+  --accent-2: #0ea5e9;
   --danger: #dc2626;
   --border: rgba(15, 23, 42, 0.14);
   --shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
@@ -45,8 +45,16 @@ body {
   margin: 0;
   font-family: "Sora", "Segoe UI", system-ui, sans-serif;
   background:
-    radial-gradient(1100px 540px at 8% -14%, rgba(15, 118, 110, 0.14), transparent 62%),
-    radial-gradient(900px 540px at 96% -14%, rgba(245, 158, 11, 0.16), transparent 64%),
+    radial-gradient(
+      1100px 540px at 8% -14%,
+      rgba(37, 99, 235, 0.14),
+      transparent 62%
+    ),
+    radial-gradient(
+      900px 540px at 96% -14%,
+      rgba(245, 158, 11, 0.16),
+      transparent 64%
+    ),
     linear-gradient(165deg, var(--bg), var(--bg-glow));
   color: var(--text);
   min-height: 100vh;
@@ -113,7 +121,11 @@ a {
   max-width: 720px;
   padding: 48px;
   border-radius: var(--radius);
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.92), rgba(245, 251, 247, 0.9));
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.92),
+    rgba(245, 251, 247, 0.9)
+  );
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
@@ -130,11 +142,19 @@ a {
 }
 
 body[data-theme="dark"] .hero {
-  background: linear-gradient(140deg, rgba(13, 21, 39, 0.92), rgba(10, 20, 38, 0.94));
+  background: linear-gradient(
+    140deg,
+    rgba(13, 21, 39, 0.92),
+    rgba(10, 20, 38, 0.94)
+  );
 }
 
 body[data-theme="dark"] .card {
-  background: linear-gradient(140deg, rgba(13, 21, 39, 0.96), rgba(10, 20, 38, 0.94));
+  background: linear-gradient(
+    140deg,
+    rgba(13, 21, 39, 0.96),
+    rgba(10, 20, 38, 0.94)
+  );
 }
 
 .auth-card {
@@ -167,8 +187,8 @@ body[data-theme="dark"] .card {
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  background: rgba(15, 118, 110, 0.08);
-  border: 1px solid rgba(15, 118, 110, 0.18);
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.18);
   color: #0f172a;
 }
 
@@ -193,14 +213,16 @@ textarea {
   border-radius: 12px;
   padding: 10px 12px;
   outline: none;
-  transition: border 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 select:focus,
 input:focus,
 textarea:focus {
-  border-color: rgba(15, 118, 110, 0.56);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+  border-color: rgba(37, 99, 235, 0.56);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
 
 input[type="file"] {
@@ -215,13 +237,16 @@ input[type="file"] {
   font-weight: 600;
   padding: 10px 18px;
   border-radius: 999px;
-  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .btn.primary {
-  background: linear-gradient(125deg, #0f766e, #22c55e);
+  background: linear-gradient(125deg, #2563eb, #0ea5e9);
   color: #ecfdf5;
-  box-shadow: 0 12px 28px rgba(15, 118, 110, 0.28);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
 }
 
 .btn.secondary {
@@ -268,7 +293,7 @@ body[data-theme="dark"] .btn.secondary {
 }
 
 .table thead {
-  background: rgba(15, 118, 110, 0.08);
+  background: rgba(37, 99, 235, 0.08);
   color: #0f172a;
 }
 
@@ -277,11 +302,11 @@ body[data-theme="dark"] .btn.secondary {
 }
 
 .table tbody tr:nth-child(odd) {
-  background: rgba(15, 118, 110, 0.02);
+  background: rgba(37, 99, 235, 0.02);
 }
 
 .table tbody tr:hover {
-  background: rgba(15, 118, 110, 0.08);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 body[data-theme="dark"] .table {
@@ -312,8 +337,8 @@ body[data-theme="dark"] .table tbody tr:hover {
 }
 
 .status-shortlisted {
-  background: rgba(15, 118, 110, 0.14);
-  color: #0f766e;
+  background: rgba(37, 99, 235, 0.14);
+  color: #2563eb;
 }
 
 .status-selected {
@@ -415,8 +440,8 @@ body[data-theme="dark"] .table tbody tr:hover {
   min-width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(20, 184, 166, 0.15);
-  color: #8ff7e8;
+  background: rgba(37, 99, 235, 0.15);
+  color: #bfdbfe;
   font-weight: 700;
 }
 
@@ -434,7 +459,9 @@ body[data-theme="dark"] .table tbody tr:hover {
   background: rgba(15, 26, 43, 0.6);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: border 0.2s ease, background 0.2s ease;
+  transition:
+    border 0.2s ease,
+    background 0.2s ease;
 }
 
 .oa-option input[type="radio"] {
@@ -442,7 +469,7 @@ body[data-theme="dark"] .table tbody tr:hover {
 }
 
 .oa-option:hover {
-  border-color: rgba(20, 184, 166, 0.4);
+  border-color: rgba(37, 99, 235, 0.4);
   background: rgba(15, 26, 43, 0.8);
 }
 
@@ -477,7 +504,7 @@ body[data-theme="dark"] .table tbody tr:hover {
   justify-content: space-between;
   padding: 20px 24px;
   border-radius: var(--radius);
-  background: rgba(15, 26, 43, 0.8);
+  background: linear-gradient(140deg, var(--surface), var(--surface-2));
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
@@ -496,8 +523,8 @@ body[data-theme="dark"] .table tbody tr:hover {
 .oa-timer {
   padding: 12px 16px;
   border-radius: 12px;
-  background: rgba(20, 184, 166, 0.12);
-  border: 1px solid rgba(20, 184, 166, 0.3);
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(37, 99, 235, 0.3);
   display: grid;
   gap: 4px;
   min-width: 140px;
@@ -513,7 +540,7 @@ body[data-theme="dark"] .table tbody tr:hover {
 .oa-timer-value {
   font-size: 1.3rem;
   font-weight: 700;
-  color: #8ff7e8;
+  color: #bfdbfe;
 }
 
 .oa-email {
@@ -552,7 +579,7 @@ body[data-theme="dark"] .table tbody tr:hover {
 
 .oa-panel {
   border-radius: var(--radius);
-  background: rgba(15, 26, 43, 0.85);
+  background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
@@ -606,14 +633,14 @@ body[data-theme="dark"] .table tbody tr:hover {
 
 .oa-summary {
   padding: 12px 14px;
-  background: rgba(15, 26, 43, 0.6);
+  background: var(--surface-2);
   border-radius: 12px;
   border: 1px solid var(--border);
   font-weight: 600;
 }
 
 .oa-card {
-  background: rgba(15, 26, 43, 0.7);
+  background: var(--surface);
   border-radius: 16px;
   padding: 24px;
   border: 1px solid var(--border);
@@ -637,6 +664,7 @@ body[data-theme="dark"] .table tbody tr:hover {
 .oa-question-text {
   margin: 0;
   font-size: 1.4rem;
+  color: var(--text);
 }
 
 .oa-options {
@@ -650,14 +678,14 @@ body[data-theme="dark"] .table tbody tr:hover {
   gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(15, 26, 43, 0.6);
+  background: var(--surface-2);
   border: 1px solid transparent;
   cursor: pointer;
 }
 
 .oa-option:hover {
-  border-color: rgba(20, 184, 166, 0.4);
-  background: rgba(15, 26, 43, 0.85);
+  border-color: rgba(37, 99, 235, 0.4);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
 }
 
 .oa-actions {
@@ -670,7 +698,7 @@ body[data-theme="dark"] .table tbody tr:hover {
 .oa-submit-card {
   padding: 36px;
   border-radius: var(--radius);
-  background: rgba(15, 26, 43, 0.8);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   text-align: center;
@@ -767,14 +795,22 @@ body[data-theme="dark"] .hrcc-logout-btn {
   gap: 12px;
   grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto;
   align-items: end;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(245, 251, 247, 0.88));
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.92),
+    rgba(245, 251, 247, 0.88)
+  );
   border: 1px solid rgba(15, 23, 42, 0.14);
   border-radius: 14px;
   padding: 14px;
 }
 
 body[data-theme="dark"] .hrcc-role-create {
-  background: linear-gradient(145deg, rgba(13, 21, 39, 0.92), rgba(11, 25, 44, 0.9));
+  background: linear-gradient(
+    145deg,
+    rgba(13, 21, 39, 0.92),
+    rgba(11, 25, 44, 0.9)
+  );
 }
 
 .hrcc-summary-card {
@@ -817,17 +853,28 @@ body[data-theme="dark"] .hrcc-card-label {
   text-align: left;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 14px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.96));
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(241, 245, 249, 0.96)
+  );
   color: #111827;
   padding: 14px;
   cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   display: grid;
   gap: 8px;
 }
 
 body[data-theme="dark"] .hrcc-role-card {
-  background: linear-gradient(165deg, rgba(16, 26, 47, 0.98), rgba(18, 35, 63, 0.95));
+  background: linear-gradient(
+    165deg,
+    rgba(16, 26, 47, 0.98),
+    rgba(18, 35, 63, 0.95)
+  );
   color: #f8fafc;
 }
 
@@ -838,12 +885,12 @@ body[data-theme="dark"] .hrcc-role-card small {
 
 .hrcc-role-card:hover {
   transform: translateY(-2px);
-  border-color: #0f766e;
+  border-color: var(--accent);
 }
 
 .hrcc-role-card.active {
-  border-color: #0f766e;
-  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.22);
+  border-color: var(--accent);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
 }
 
 .hrcc-role-card strong {
@@ -878,7 +925,7 @@ body[data-theme="dark"] .hrcc-stage-btn {
 }
 
 .hrcc-stage-btn.active {
-  background: linear-gradient(135deg, #0f766e, #22c55e);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #ecfdf5;
   border-color: transparent;
 }
@@ -896,30 +943,30 @@ body[data-theme="dark"] .hrcc-stage-btn.active {
 .hrcc-table-shell {
   overflow: auto;
   border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.08);
 }
 
 .hrcc-table {
   min-width: 960px;
-  background: #0f172a;
-  color: #f8fafc;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .hrcc-table thead {
-  background: #111827;
+  background: var(--surface-2);
 }
 
 .hrcc-table tbody tr:nth-child(odd) {
-  background: rgba(15, 23, 42, 0.86);
+  background: rgba(2, 6, 23, 0.03);
 }
 
 .hrcc-table tbody tr:nth-child(even) {
-  background: rgba(2, 6, 23, 0.92);
+  background: rgba(2, 6, 23, 0.01);
 }
 
 .hrcc-table tbody tr:hover {
-  background: rgba(15, 118, 110, 0.22);
+  background: rgba(37, 99, 235, 0.06);
 }
 
 .hrcc-action-group {
@@ -929,7 +976,7 @@ body[data-theme="dark"] .hrcc-stage-btn.active {
 }
 
 .hrcc-action-btn {
-  background: linear-gradient(135deg, #0f766e, #22c55e);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #ecfdf5;
   border-radius: 999px;
   padding: 8px 12px;
@@ -953,17 +1000,25 @@ body[data-theme="dark"] .hrcc-action-btn {
   padding: 14px;
   border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.14);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(246, 250, 247, 0.82));
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.86),
+    rgba(246, 250, 247, 0.82)
+  );
 }
 
 body[data-theme="dark"] .hrcc-funnel {
-  background: linear-gradient(145deg, rgba(13, 21, 39, 0.9), rgba(11, 25, 44, 0.88));
+  background: linear-gradient(
+    145deg,
+    rgba(13, 21, 39, 0.9),
+    rgba(11, 25, 44, 0.88)
+  );
 }
 
 .hrcc-funnel div {
   min-width: 120px;
   text-align: center;
-  background: rgba(15, 118, 110, 0.08);
+  background: rgba(37, 99, 235, 0.08);
   border-radius: 12px;
   padding: 10px 8px;
 }
@@ -984,7 +1039,7 @@ body[data-theme="dark"] .hrcc-funnel div {
 }
 
 .hrcc-funnel span {
-  color: #0f766e;
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -1081,7 +1136,7 @@ body[data-theme="dark"] .hrcc-side-content p {
 }
 
 .hrcc-side-content a {
-  color: #166534;
+  color: var(--accent);
   font-weight: 600;
 }
 

@@ -9,7 +9,7 @@ import InterviewTest from "./pages/InterviewTest";
 
 function App() {
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("uiTheme") || "dark"
+    () => localStorage.getItem("uiTheme") || "light",
   );
 
   useEffect(() => {

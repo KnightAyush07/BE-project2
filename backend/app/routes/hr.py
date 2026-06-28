@@ -275,6 +275,53 @@ def get_all_candidates(user=Depends(require_role("HR"))):
     return response
 
 
+@router.get("/metrics")
+def get_hr_metrics(role: str | None = None, user=Depends(require_role("HR"))):
+    """
+    HR: Summary metrics for the dashboard, scoped to the logged-in HR account.
+    """
+    params: list = [user["id"]]
+    role_filter = ""
+    if role:
+        role_filter = " AND candidates.role = ?"
+        params.append(role)
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT candidates.role, candidates.oa_eligible, candidates.oa_status, candidates.status
+            FROM candidates
+            JOIN hr_profiles ON hr_profiles.id = candidates.hr_id
+            WHERE hr_profiles.user_id = ?
+            """
+            + role_filter,
+            params,
+        )
+        rows = cur.fetchall()
+
+    roles = {row["role"] for row in rows if row["role"]}
+    shortlisted = sum(1 for row in rows if row["oa_eligible"] == 1)
+    oa_cleared = sum(
+        1
+        for row in rows
+        if (row["oa_status"] or "").strip().upper() in {"PASS", "CLEARED"}
+    )
+    final_selected = sum(
+        1
+        for row in rows
+        if (row["status"] or "").strip().upper() == "SELECTED"
+    )
+
+    return {
+        "active_roles": len(roles),
+        "total_applicants": len(rows),
+        "shortlisted": shortlisted,
+        "oa_cleared": oa_cleared,
+        "final_selected": final_selected,
+    }
+
+
 @router.get("/shortlist")
 @router.post("/shortlist")
 def shortlist_candidates(
@@ -351,6 +398,11 @@ def finalize_candidates(
                 "UPDATE candidates SET status = ? WHERE id = ?",
                 [("SELECTED", cid) for cid in selected_ids],
             )
+            # Mark selected candidates as visible to candidate (they will see congratulatory message)
+            cur.executemany(
+                "UPDATE candidates SET visible_to_candidate = 1 WHERE id = ?",
+                [(cid,) for cid in selected_ids],
+            )
         if not_selected_ids:
             cur.executemany(
                 "UPDATE candidates SET status = ? WHERE id = ?",
@@ -363,6 +415,48 @@ def finalize_candidates(
         "selected_count": len(selected_ids),
         "not_selected_count": len(not_selected_ids),
     }
+
+
+@router.get("/preview")
+def preview_finalize_candidates(
+    role: str,
+    top_n: int = 10,
+    limit: int | None = None,
+    user=Depends(require_role("HR")),
+):
+    """
+    HR: Preview which candidates would be selected for final stage without applying changes.
+    """
+    n = limit if limit is not None else top_n
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT candidates.*
+            FROM candidates
+            JOIN hr_profiles ON hr_profiles.id = candidates.hr_id
+            WHERE hr_profiles.user_id = ? AND candidates.role = ?
+            """,
+            (user["id"], role),
+        )
+        rows = cur.fetchall()
+
+        completed_candidates = [row for row in rows if _has_completed_full_process(row)]
+        ranked_candidates = sorted(completed_candidates, key=_final_ranking_key)
+        selected_candidates = ranked_candidates[: max(0, n)]
+
+    # Return minimal info for preview
+    return [
+        {
+            "id": c["id"],
+            "name": c["name"],
+            "email": c["email"],
+            "ats_score": c["ats_score"],
+            "oa_percentage": c["oa_percentage"],
+            "interview_percentage": c["interview_percentage"],
+        }
+        for c in selected_candidates
+    ]
 
 
 @router.post("/decision")

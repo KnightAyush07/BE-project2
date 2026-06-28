@@ -3,6 +3,7 @@ import {
   fetchAllCandidates,
   fetchHrMetrics,
   finalizeCandidates,
+  previewFinalize,
   setCandidateDecision,
   shortlistCandidates,
   uploadHrJobDescription,
@@ -79,13 +80,29 @@ function HRDashboard({ onLogout }) {
         .filter((value, index, arr) => arr.indexOf(value) === index);
       if (rolesFromData.length > 0) {
         setRolePool((prev) =>
-          [...new Set([...prev, ...rolesFromData])].filter(Boolean)
+          [...new Set([...prev, ...rolesFromData])].filter(Boolean),
         );
       }
       setError("");
-    } catch (_err) {
+    } catch (err) {
       setCandidates([]);
-      setError("Candidate pipeline is currently unavailable. Please refresh in a moment.");
+      const message =
+        err?.message ||
+        "Candidate pipeline is currently unavailable. Please refresh in a moment.";
+      const normalized = message.toLowerCase();
+      if (
+        normalized.includes("unauthorized") ||
+        normalized.includes("forbidden") ||
+        normalized.includes("missing token") ||
+        normalized.includes("invalid token")
+      ) {
+        setError("Session expired or unauthorized. Please login again.");
+        if (onLogout) {
+          onLogout();
+        }
+        return;
+      }
+      setError(message);
     }
   };
 
@@ -134,7 +151,9 @@ function HRDashboard({ onLogout }) {
   }, [activeStage, byRole]);
 
   const fallbackMetrics = useMemo(() => {
-    const shortlisted = byRole.filter((candidate) => candidate.oa_eligible === 1).length;
+    const shortlisted = byRole.filter(
+      (candidate) => candidate.oa_eligible === 1,
+    ).length;
     const oaCleared = byRole.filter((candidate) => {
       const status = (candidate.oa_status || "").toUpperCase();
       return status === "PASS" || status === "CLEARED";
@@ -154,16 +173,38 @@ function HRDashboard({ onLogout }) {
   }, [byRole, roles.length]);
 
   const summaryCards = [
-    { key: "active_roles", label: "Active Roles", value: metrics.active_roles ?? fallbackMetrics.active_roles },
-    { key: "total_applicants", label: "Total Applicants", value: metrics.total_applicants ?? fallbackMetrics.total_applicants },
-    { key: "shortlisted", label: "Shortlisted", value: metrics.shortlisted ?? fallbackMetrics.shortlisted },
-    { key: "oa_cleared", label: "OA Cleared", value: metrics.oa_cleared ?? fallbackMetrics.oa_cleared },
-    { key: "final_selected", label: "Final Selected", value: metrics.final_selected ?? fallbackMetrics.final_selected },
+    {
+      key: "active_roles",
+      label: "Active Roles",
+      value: metrics.active_roles ?? fallbackMetrics.active_roles,
+    },
+    {
+      key: "total_applicants",
+      label: "Total Applicants",
+      value: metrics.total_applicants ?? fallbackMetrics.total_applicants,
+    },
+    {
+      key: "shortlisted",
+      label: "Shortlisted",
+      value: metrics.shortlisted ?? fallbackMetrics.shortlisted,
+    },
+    {
+      key: "oa_cleared",
+      label: "OA Cleared",
+      value: metrics.oa_cleared ?? fallbackMetrics.oa_cleared,
+    },
+    {
+      key: "final_selected",
+      label: "Final Selected",
+      value: metrics.final_selected ?? fallbackMetrics.final_selected,
+    },
   ];
 
   const funnel = useMemo(() => {
     const applied = byRole.length;
-    const atsCleared = byRole.filter((candidate) => candidate.oa_eligible === 1).length;
+    const atsCleared = byRole.filter(
+      (candidate) => candidate.oa_eligible === 1,
+    ).length;
     const oaPassed = byRole.filter((candidate) => {
       const status = (candidate.oa_status || "").toUpperCase();
       return status === "PASS" || status === "CLEARED";
@@ -184,7 +225,7 @@ function HRDashboard({ onLogout }) {
     try {
       const data = await fetchHrMetrics(role);
       setMetrics(data);
-    } catch (_err) {
+    } catch {
       setMetrics(fallbackMetrics);
     }
   };
@@ -215,7 +256,8 @@ function HRDashboard({ onLogout }) {
       .filter((candidate) => candidate.email)
       .sort(
         (a, b) =>
-          Number(b.oa_percentage ?? b.oa_score ?? 0) - Number(a.oa_percentage ?? a.oa_score ?? 0)
+          Number(b.oa_percentage ?? b.oa_score ?? 0) -
+          Number(a.oa_percentage ?? a.oa_score ?? 0),
       )
       .slice(0, limit);
 
@@ -229,7 +271,9 @@ function HRDashboard({ onLogout }) {
       for (const candidate of eligible) {
         await setCandidateDecision(candidate.email, "APPROVED");
       }
-      setToast(`OA stage complete: Top ${eligible.length} moved to Interview stage.`);
+      setToast(
+        `OA stage complete: Top ${eligible.length} moved to Interview stage.`,
+      );
       await refreshAll();
     } catch (err) {
       setToast(err.message || "OA selection failed.");
@@ -241,10 +285,35 @@ function HRDashboard({ onLogout }) {
   const runTop5Interview = async () => {
     if (!selectedRole) return;
     const limit = Math.max(1, Number(interviewLimit) || 1);
+    // Preview top candidates first and ask for confirmation
+    try {
+      setLoadingAction(true);
+      const preview = await previewFinalize(selectedRole, limit);
+      setPreviewCandidates(preview || []);
+      setPreviewOpen(true);
+    } catch (err) {
+      setToast(err.message || "Preview failed.");
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewCandidates, setPreviewCandidates] = useState([]);
+  const [showCongrats, setShowCongrats] = useState(false);
+  const [congratsCandidates, setCongratsCandidates] = useState([]);
+
+  const confirmFinalize = async () => {
+    if (!selectedRole) return;
+    const limit = Math.max(1, Number(interviewLimit) || 1);
     setLoadingAction(true);
     try {
       await finalizeCandidates(selectedRole, limit);
-      setToast(`Interview stage complete: Top ${limit} marked as final selected.`);
+      setToast(`Final selection confirmed: Top ${limit} notified.`);
+      setPreviewOpen(false);
+      // Show congratulations modal with the finalized candidates
+      setCongratsCandidates(previewCandidates || []);
+      setShowCongrats(true);
       await refreshAll();
     } catch (err) {
       setToast(err.message || "Final selection failed.");
@@ -375,7 +444,11 @@ function HRDashboard({ onLogout }) {
             onChange={(e) => setJdFile(e.target.files?.[0] || null)}
           />
         </div>
-        <button className="btn hrcc-action-btn" onClick={addRole} disabled={loadingAction}>
+        <button
+          className="btn hrcc-action-btn"
+          onClick={addRole}
+          disabled={loadingAction}
+        >
           Add Role + JD
         </button>
       </section>
@@ -453,17 +526,29 @@ function HRDashboard({ onLogout }) {
           />
         </div>
         {activeStage === "resume" && (
-          <button className="btn hrcc-action-btn" onClick={runTop20Resume} disabled={loadingAction || !selectedRole}>
+          <button
+            className="btn hrcc-action-btn"
+            onClick={runTop20Resume}
+            disabled={loadingAction || !selectedRole}
+          >
             Select Top {Math.max(1, Number(resumeLimit) || 1)} for OA
           </button>
         )}
         {activeStage === "oa" && (
-          <button className="btn hrcc-action-btn" onClick={runTop5Oa} disabled={loadingAction || stageCandidates.length === 0}>
+          <button
+            className="btn hrcc-action-btn"
+            onClick={runTop5Oa}
+            disabled={loadingAction || stageCandidates.length === 0}
+          >
             Select Top {Math.max(1, Number(oaLimit) || 1)} for Interview
           </button>
         )}
         {activeStage === "interview" && (
-          <button className="btn hrcc-action-btn" onClick={runTop5Interview} disabled={loadingAction || !selectedRole}>
+          <button
+            className="btn hrcc-action-btn"
+            onClick={runTop5Interview}
+            disabled={loadingAction || !selectedRole}
+          >
             Select Top {Math.max(1, Number(interviewLimit) || 1)} Final
           </button>
         )}
@@ -475,10 +560,9 @@ function HRDashboard({ onLogout }) {
             <tr>
               <th>Name</th>
               <th>ATS Score</th>
-              <th>Skills Matched</th>
               <th>OA Score</th>
               <th>OA Tab Switches</th>
-              <th>Interview Status</th>
+              <th>Interview Score</th>
               <th>Interview Tab Switches</th>
               <th>Final Status</th>
               <th>XAI</th>
@@ -488,20 +572,26 @@ function HRDashboard({ onLogout }) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={10}>Loading candidates...</td>
+                <td colSpan={9}>Loading candidates...</td>
               </tr>
             )}
             {!loading && stageCandidates.length === 0 && (
               <tr>
-                <td colSpan={10}>{getStageEmptyMessage()}</td>
+                <td colSpan={9}>{getStageEmptyMessage()}</td>
               </tr>
             )}
             {!loading &&
               stageCandidates.map((candidate) => (
                 <tr key={candidate.id || candidate.email}>
                   <td>{candidate.name || "-"}</td>
-                  <td>{candidate.ats_score ?? candidate.ats_match_percent ?? "-"}</td>
-                  <td>{formatList(candidate.ats_matched_skills)}</td>
+                  <td>
+                    {candidate.ats_score != null
+                      ? Number(candidate.ats_score).toFixed(2)
+                      : candidate.ats_match_percent != null
+                        ? Number(candidate.ats_match_percent).toFixed(2)
+                        : "-"}
+                  </td>
+
                   <td>
                     {candidate.oa_score !== null && candidate.oa_total
                       ? `${candidate.oa_score}/${candidate.oa_total}`
@@ -509,9 +599,9 @@ function HRDashboard({ onLogout }) {
                   </td>
                   <td>{candidate.oa_tab_switches ?? 0}</td>
                   <td>
-                    <span className={getStatusClass(candidate.interview_status)}>
-                      {candidate.interview_status || "NOT_TAKEN"}
-                    </span>
+                    {candidate.interview_score != null
+                      ? Number(candidate.interview_score).toFixed(2)
+                      : "-"}
                   </td>
                   <td>{candidate.interview_tab_switches ?? 0}</td>
                   <td>
@@ -520,12 +610,32 @@ function HRDashboard({ onLogout }) {
                     </span>
                   </td>
                   <td>
-                    <button className="btn secondary" onClick={() => setSelectedCandidate(candidate)}>
+                    <button
+                      className="btn secondary"
+                      disabled={loadingAction}
+                      onClick={async () => {
+                        setLoadingAction(true);
+                        try {
+                          await setCandidateDecision(candidate.email, "HOLD");
+                          setToast(
+                            `${candidate.name || candidate.email} put on HOLD`,
+                          );
+                          await refreshAll();
+                        } catch (err) {
+                          setToast(err.message || "Action failed.");
+                        } finally {
+                          setLoadingAction(false);
+                        }
+                      }}
+                    >
                       {getStageRecommendation(candidate)}
                     </button>
                   </td>
                   <td>
-                    <button className="btn hrcc-action-btn" onClick={() => setSelectedCandidate(candidate)}>
+                    <button
+                      className="btn hrcc-action-btn"
+                      onClick={() => setSelectedCandidate(candidate)}
+                    >
                       View Details
                     </button>
                   </td>
@@ -569,7 +679,10 @@ function HRDashboard({ onLogout }) {
       <aside className={`hrcc-side-panel ${selectedCandidate ? "open" : ""}`}>
         <div className="hrcc-side-header">
           <h3>Candidate Details</h3>
-          <button className="btn secondary" onClick={() => setSelectedCandidate(null)}>
+          <button
+            className="btn secondary"
+            onClick={() => setSelectedCandidate(null)}
+          >
             Close
           </button>
         </div>
@@ -578,11 +691,21 @@ function HRDashboard({ onLogout }) {
           <div className="hrcc-side-content">
             <section>
               <h4>Candidate Info</h4>
-              <p><strong>Name:</strong> {selectedCandidate.name || "-"}</p>
-              <p><strong>Email:</strong> {selectedCandidate.email || "-"}</p>
-              <p><strong>Phone:</strong> {selectedCandidate.phone || "-"}</p>
+              <p>
+                <strong>Name:</strong> {selectedCandidate.name || "-"}
+              </p>
+              <p>
+                <strong>Email:</strong> {selectedCandidate.email || "-"}
+              </p>
+              <p>
+                <strong>Phone:</strong> {selectedCandidate.phone || "-"}
+              </p>
               {getResumeLink(selectedCandidate) ? (
-                <a href={getResumeLink(selectedCandidate)} target="_blank" rel="noreferrer">
+                <a
+                  href={getResumeLink(selectedCandidate)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Resume preview / download
                 </a>
               ) : (
@@ -592,29 +715,56 @@ function HRDashboard({ onLogout }) {
 
             <section>
               <h4>ATS Details</h4>
-              <p><strong>ATS Score:</strong> {selectedCandidate.ats_score ?? selectedCandidate.ats_match_percent ?? "-"}</p>
-              <p><strong>Skills Matched:</strong> {formatList(selectedCandidate.ats_matched_skills)}</p>
-              <p><strong>Skills Missing:</strong> {formatList(selectedCandidate.ats_missing_skills)}</p>
-              <p><strong>Education:</strong> {formatList(selectedCandidate.education)}</p>
+              <p>
+                <strong>ATS Score:</strong>{" "}
+                {selectedCandidate.ats_score != null
+                  ? Number(selectedCandidate.ats_score).toFixed(2)
+                  : selectedCandidate.ats_match_percent != null
+                    ? Number(selectedCandidate.ats_match_percent).toFixed(2)
+                    : "-"}
+              </p>
+
+              <p>
+                <strong>Skills Missing:</strong>{" "}
+                {formatList(selectedCandidate.ats_missing_skills)}
+              </p>
+              <p>
+                <strong>Education:</strong>{" "}
+                {formatList(selectedCandidate.education)}
+              </p>
             </section>
 
             <section>
               <h4>OA Details</h4>
               <p>
                 <strong>OA Score:</strong>{" "}
-                {selectedCandidate.oa_score !== null && selectedCandidate.oa_total
+                {selectedCandidate.oa_score !== null &&
+                selectedCandidate.oa_total
                   ? `${selectedCandidate.oa_score}/${selectedCandidate.oa_total} (${selectedCandidate.oa_percentage ?? 0}%)`
                   : "-"}
               </p>
-              <p><strong>OA Status:</strong> {selectedCandidate.oa_status || "NOT_TAKEN"}</p>
-              <p><strong>OA Tab Switches:</strong> {selectedCandidate.oa_tab_switches ?? 0}</p>
+              <p>
+                <strong>OA Status:</strong>{" "}
+                {selectedCandidate.oa_status || "NOT_TAKEN"}
+              </p>
+              <p>
+                <strong>OA Tab Switches:</strong>{" "}
+                {selectedCandidate.oa_tab_switches ?? 0}
+              </p>
             </section>
 
             <section>
               <h4>Interview Details</h4>
-              <p><strong>Interview Score:</strong> {selectedCandidate.interview_score ?? "-"}</p>
-              <p><strong>Interview Status:</strong> {selectedCandidate.interview_status || "NOT_TAKEN"}</p>
-              <p><strong>Interview Tab Switches:</strong> {selectedCandidate.interview_tab_switches ?? 0}</p>
+              <p>
+                <strong>Interview Score:</strong>{" "}
+                {selectedCandidate.interview_score != null
+                  ? Number(selectedCandidate.interview_score).toFixed(2)
+                  : "-"}
+              </p>
+              <p>
+                <strong>Interview Tab Switches:</strong>{" "}
+                {selectedCandidate.interview_tab_switches ?? 0}
+              </p>
             </section>
 
             <section>
@@ -629,47 +779,60 @@ function HRDashboard({ onLogout }) {
                     {getXaiForStage(selectedCandidate).recommendation}
                   </p>
                   <p>
-                    <strong>Summary:</strong> {getXaiForStage(selectedCandidate).summary}
+                    <strong>Summary:</strong>{" "}
+                    {getXaiForStage(selectedCandidate).summary}
                   </p>
                   <p>
                     <strong>Why this recommendation:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).rationale || []).join(" ") || "-"}
+                    {(getXaiForStage(selectedCandidate).rationale || []).join(
+                      " ",
+                    ) || "-"}
                   </p>
                   <p>
                     <strong>Strengths:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).strengths || []).join(" ") || "-"}
+                    {(getXaiForStage(selectedCandidate).strengths || []).join(
+                      " ",
+                    ) || "-"}
                   </p>
                   <p>
                     <strong>Concerns:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).concerns || []).join(" ") || "-"}
+                    {(getXaiForStage(selectedCandidate).concerns || []).join(
+                      " ",
+                    ) || "-"}
                   </p>
                   <p>
                     <strong>Next step:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).next_steps || []).join(" ") || "-"}
+                    {(getXaiForStage(selectedCandidate).next_steps || []).join(
+                      " ",
+                    ) || "-"}
                   </p>
                   <p>
                     <strong>Surrogate advance probability:</strong>{" "}
-                    {selectedCandidate?.xai?.model_explanations?.advance_probability ?? "-"}%
+                    {selectedCandidate?.xai?.model_explanations
+                      ?.advance_probability ?? "-"}
+                    %
                   </p>
                   <p>
                     <strong>SHAP top factors:</strong>{" "}
                     {(
-                      selectedCandidate?.xai?.model_explanations?.shap_top_features || []
+                      selectedCandidate?.xai?.model_explanations
+                        ?.shap_top_features || []
                     )
                       .map(
                         (item) =>
-                          `${item.feature} (${item.direction}, impact ${item.impact})`
+                          `${item.feature} (${item.direction}, impact ${item.impact})`,
                       )
                       .join(" ") || "-"}
                   </p>
                   <p>
                     <strong>LIME local rules:</strong>{" "}
                     {(
-                      selectedCandidate?.xai?.model_explanations?.lime_local_rules || []
+                      selectedCandidate?.xai?.model_explanations
+                        ?.lime_local_rules || []
                     )
                       .map(
                         (item) =>
-                          `${item.feature_rule} (${item.direction}, weight ${item.weight})`
+                          `${item.feature_rule} (${item.direction}, weight ${item.weight})`,
                       )
                       .join(" ") || "-"}
                   </p>
@@ -685,6 +848,60 @@ function HRDashboard({ onLogout }) {
       <div className="hrcc-footer-note">
         <span>Selected role: {formatRole(selectedRole)}</span>
       </div>
+      {previewOpen && (
+        <div className="hrcc-modal open">
+          <div className="hrcc-modal-card">
+            <h3>Preview Final Selection</h3>
+            <p>Top candidates to be marked selected:</p>
+            <ul>
+              {previewCandidates.map((c) => (
+                <li key={c.id}>
+                  {c.name || c.email} - {c.email} - ATS: {c.ats_score ?? "-"} -
+                  OA: {c.oa_percentage ?? "-"}
+                </li>
+              ))}
+            </ul>
+            <div className="toolbar">
+              <button
+                className="btn secondary"
+                onClick={() => setPreviewOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn primary"
+                onClick={confirmFinalize}
+                disabled={loadingAction}
+              >
+                Confirm and Notify
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showCongrats && (
+        <div className="hrcc-modal open">
+          <div className="hrcc-modal-card">
+            <h3>Congratulations!</h3>
+            <p>The following candidate(s) were selected as final:</p>
+            <ul>
+              {congratsCandidates.map((c) => (
+                <li key={c.id || c.email}>
+                  {c.name || c.email} - {c.email}
+                </li>
+              ))}
+            </ul>
+            <div className="toolbar">
+              <button
+                className="btn primary"
+                onClick={() => setShowCongrats(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

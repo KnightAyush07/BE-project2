@@ -1,16 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import HRDashboard from "./HRDashboard";
-import { loginUser } from "../services/api";
+import { getCurrentUser, loginUser } from "../services/api";
 
 function HRPage() {
-  const [email, setEmail] = useState("gawandeayush071004@gmail.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [authToken, setAuthToken] = useState(
-    localStorage.getItem("authToken") || ""
+    localStorage.getItem("authToken") || "",
   );
   const [authRole, setAuthRole] = useState(
-    localStorage.getItem("authRole") || ""
+    localStorage.getItem("authRole") || "",
   );
 
   const handleLogin = async () => {
@@ -43,6 +43,26 @@ function HRPage() {
     setPassword("");
   };
 
+  useEffect(() => {
+    const validateToken = async () => {
+      const token = localStorage.getItem("authToken");
+      const role = localStorage.getItem("authRole");
+      if (!token || role !== "HR") {
+        handleLogout();
+        return;
+      }
+      try {
+        const user = await getCurrentUser();
+        if (user.role !== "HR") {
+          handleLogout();
+        }
+      } catch {
+        handleLogout();
+      }
+    };
+    validateToken();
+  }, []);
+
   if (!authToken || authRole !== "HR") {
     return (
       <div className="page centered">
@@ -56,7 +76,7 @@ function HRPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="gawandeayush071004@gmail.com"
+              placeholder="hr1@company.com"
             />
           </div>
           <div className="form-row">
@@ -65,7 +85,7 @@ function HRPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="********"
+              placeholder="Hr@12345"
             />
           </div>
 

@@ -16,19 +16,21 @@ function CandidatePage() {
   const [candidateStatus, setCandidateStatus] = useState(null);
   const [statusError, setStatusError] = useState("");
   const [authEmail, setAuthEmail] = useState(
-    localStorage.getItem("authEmail") || ""
+    localStorage.getItem("authEmail") || "",
   );
-  const [authName, setAuthName] = useState(localStorage.getItem("authName") || "");
+  const [authName, setAuthName] = useState(
+    localStorage.getItem("authName") || "",
+  );
   const [authToken, setAuthToken] = useState(
-    localStorage.getItem("authToken") || ""
+    localStorage.getItem("authToken") || "",
   );
   const [authRole, setAuthRole] = useState(
-    localStorage.getItem("authRole") || ""
+    localStorage.getItem("authRole") || "",
   );
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [resolvedRole, setResolvedRole] = useState(
-    localStorage.getItem("candidateRole") || "python_dev"
+    localStorage.getItem("candidateRole") || "python_dev",
   );
   const [oaStatus, setOaStatus] = useState("NOT_TAKEN");
   const [interviewEligible, setInterviewEligible] = useState(false);
@@ -61,7 +63,7 @@ function CandidatePage() {
       const data = await checkInterviewEligibility(candidateEmail);
       setInterviewEligible(data?.eligible === true);
       setInterviewStatus((data?.interview_status || "NOT_TAKEN").toUpperCase());
-    } catch (_err) {
+    } catch {
       setInterviewEligible(false);
       setInterviewStatus("NOT_TAKEN");
     }
@@ -79,7 +81,7 @@ function CandidatePage() {
       }
       setHasApplication(true);
       setCandidateStatus(data);
-    } catch (err) {
+    } catch {
       setHasApplication(false);
       setStatusError("Unable to fetch status right now.");
     }
@@ -141,6 +143,14 @@ function CandidatePage() {
 
   const isCandidateLoggedIn = authToken && authRole === "CANDIDATE";
 
+  const FINAL_STATUSES = [
+    "SELECTED",
+    "REJECTED",
+    "OFFERED",
+    "DECLINED",
+    "CONGRATULATIONS",
+  ];
+
   return (
     <div className={`page ${isCandidateLoggedIn ? "" : "centered"}`.trim()}>
       {!isCandidateLoggedIn ? (
@@ -201,7 +211,13 @@ function CandidatePage() {
             {statusError && <p className="helper error">{statusError}</p>}
             <p>
               Status:{" "}
-              <strong>{candidateStatus?.status || "UNDER_REVIEW"}</strong>
+              <strong>
+                {FINAL_STATUSES.includes(
+                  (candidateStatus?.status || "").toUpperCase(),
+                )
+                  ? candidateStatus.status
+                  : "UNDER_REVIEW"}
+              </strong>
             </p>
             {candidateStatus?.message && <p>{candidateStatus.message}</p>}
             <p className="helper">Live status refreshes every 3 seconds.</p>
@@ -212,10 +228,43 @@ function CandidatePage() {
               <p>Checking eligibility...</p>
             ) : !hasApplication ? (
               <p>Upload resume and submit application first to unlock OA.</p>
+            ) : ["SELECTED", "OFFERED", "CONGRATULATIONS"].includes(
+                (candidateStatus?.status || "").toUpperCase(),
+              ) ? (
+              <div className="stack">
+                <h3>🎉 Congratulations!</h3>
+                <p>
+                  You have been selected as a top candidate! Our HR team will
+                  soon reach out with next steps including offer details, job
+                  responsibilities, and onboarding information.
+                </p>
+                <p>
+                  Thank you for completing all the rounds of our recruitment
+                  process. We're excited to have you join our team!
+                </p>
+                {candidateStatus?.contact_info && (
+                  <p>
+                    <strong>Contact details:</strong>{" "}
+                    {candidateStatus.contact_info}
+                  </p>
+                )}
+                <p className="helper">
+                  Keep your phone and email available. Our HR team will contact
+                  you soon!
+                </p>
+              </div>
             ) : interviewStatus === "PASS" || interviewStatus === "FAIL" ? (
-              <p>
-                Interview completed. Status: <strong>{interviewStatus}</strong>.
-              </p>
+              <div className="stack">
+                <h3>Interview Completed</h3>
+                <p>
+                  Thank you for completing the interview. Our HR team will
+                  review your responses and contact you with the next steps.
+                  Please keep your phone and email available.
+                </p>
+                <p className="helper">
+                  You will be notified when a decision is made.
+                </p>
+              </div>
             ) : oaEligible && oaStatus === "NOT_TAKEN" ? (
               <div className="stack">
                 <p>Online assessment is available in this stage.</p>
@@ -230,7 +279,9 @@ function CandidatePage() {
               <p>OA is not available yet.</p>
             ) : oaStatus === "PASS" || oaStatus === "FAIL" ? (
               <div className="stack">
-                <p>OA submitted. You can continue to the text AI interview now.</p>
+                <p>
+                  OA submitted. You can continue to the text AI interview now.
+                </p>
                 <button
                   className="btn primary"
                   onClick={() => navigate(`/interview/${candidateRole}`)}
