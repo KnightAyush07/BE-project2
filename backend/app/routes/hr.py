@@ -41,6 +41,18 @@ def _final_ranking_key(candidate: dict):
     )
 
 
+def _overall_score_key(c: dict) -> float:
+    """Weighted composite score used when candidates haven't finished all stages.
+    Returns a NEGATIVE float so ascending sort == best first."""
+    ats = _safe_number(c.get("ats_score") or c.get("ats_match_percent"))
+    oa  = _safe_number(
+        c.get("oa_percentage")
+        or (c.get("oa_score", 0) / c.get("oa_total", 1) * 100 if c.get("oa_total") else 0)
+    )
+    ivp = _safe_number(c.get("interview_percentage") or c.get("interview_score"))
+    return -(ats * 0.4 + oa * 0.35 + ivp * 0.25)
+
+
 def _fallback_xai(record: dict, error: Exception | None = None) -> dict:
     status = (record.get("status") or "PENDING").strip().upper() or "PENDING"
     summary = "Explainability is temporarily unavailable for this candidate."
@@ -371,9 +383,13 @@ def finalize_candidates(
     user=Depends(require_role("HR")),
 ):
     """
-    HR: Final selection after full process completion
+    HR: Final selection after full process completion.
+    Primary path  ─ ranks candidates who completed OA + Interview.
+    Fallback path ─ if none completed both stages, ranks ALL candidates
+    by weighted score (ATS×0.4 + OA%×0.35 + interview%×0.25).
     """
-    n = limit if limit is not None else top_n
+    n = max(0, limit if limit is not None else top_n)
+
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -385,36 +401,41 @@ def finalize_candidates(
             """,
             (user["id"], role),
         )
-        rows = cur.fetchall()
+        # Convert to plain dicts so .get() works in all ranking helpers
+        rows = [dict(r) for r in cur.fetchall()]
 
-        completed_candidates = [row for row in rows if _has_completed_full_process(row)]
-        ranked_candidates = sorted(completed_candidates, key=_final_ranking_key)
-        selected_candidates = ranked_candidates[: max(0, n)]
-        selected_ids = [row["id"] for row in selected_candidates]
-        not_selected_ids = [row["id"] for row in ranked_candidates[max(0, n) :]]
+        # ── Primary path: candidates who finished OA + Interview ──
+        completed = [r for r in rows if _has_completed_full_process(r)]
+        if completed:
+            ranked = sorted(completed, key=_final_ranking_key)
+        else:
+            # ── Fallback path: rank ALL role candidates by overall score ──
+            ranked = sorted(rows, key=_overall_score_key)
+
+        selected     = ranked[:n]
+        not_selected = ranked[n:]
+
+        selected_ids     = [r["id"] for r in selected]
+        not_selected_ids = [r["id"] for r in not_selected]
 
         if selected_ids:
             cur.executemany(
-                "UPDATE candidates SET status = ? WHERE id = ?",
+                "UPDATE candidates SET status = ?, visible_to_candidate = 1 WHERE id = ?",
                 [("SELECTED", cid) for cid in selected_ids],
-            )
-            # Mark selected candidates as visible to candidate (they will see congratulatory message)
-            cur.executemany(
-                "UPDATE candidates SET visible_to_candidate = 1 WHERE id = ?",
-                [(cid,) for cid in selected_ids],
             )
         if not_selected_ids:
             cur.executemany(
-                "UPDATE candidates SET status = ? WHERE id = ?",
+                "UPDATE candidates SET status = ?, visible_to_candidate = 0 WHERE id = ?",
                 [("REGRET", cid) for cid in not_selected_ids],
             )
 
     return {
         "role": role,
-        "completed_candidates": len(ranked_candidates),
+        "fallback_used": len(completed) == 0,
         "selected_count": len(selected_ids),
         "not_selected_count": len(not_selected_ids),
     }
+
 
 
 @router.get("/preview")
@@ -425,9 +446,9 @@ def preview_finalize_candidates(
     user=Depends(require_role("HR")),
 ):
     """
-    HR: Preview which candidates would be selected for final stage without applying changes.
+    HR: Preview which candidates would be selected without applying changes.
     """
-    n = limit if limit is not None else top_n
+    n = max(0, limit if limit is not None else top_n)
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -439,13 +460,16 @@ def preview_finalize_candidates(
             """,
             (user["id"], role),
         )
-        rows = cur.fetchall()
+        rows = [dict(r) for r in cur.fetchall()]  # dict so .get() works
 
-        completed_candidates = [row for row in rows if _has_completed_full_process(row)]
-        ranked_candidates = sorted(completed_candidates, key=_final_ranking_key)
-        selected_candidates = ranked_candidates[: max(0, n)]
+        completed = [r for r in rows if _has_completed_full_process(r)]
+        if completed:
+            ranked = sorted(completed, key=_final_ranking_key)
+        else:
+            ranked = sorted(rows, key=_overall_score_key)
 
-    # Return minimal info for preview
+        selected = ranked[:n]
+
     return [
         {
             "id": c["id"],
@@ -455,7 +479,7 @@ def preview_finalize_candidates(
             "oa_percentage": c["oa_percentage"],
             "interview_percentage": c["interview_percentage"],
         }
-        for c in selected_candidates
+        for c in selected
     ]
 
 

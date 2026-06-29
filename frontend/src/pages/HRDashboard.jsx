@@ -1,15 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchAllCandidates,
   fetchHrMetrics,
   finalizeCandidates,
-  previewFinalize,
-  setCandidateDecision,
-  shortlistCandidates,
   uploadHrJobDescription,
 } from "../services/api";
 
 const DEFAULT_ROLES = [];
+
+const CARD_META = {
+  active_roles:      { icon: "💼" },
+  total_applicants:  { icon: "👥" },
+  shortlisted:       { icon: "✅" },
+  oa_cleared:        { icon: "📝" },
+  final_selected:    { icon: "🏆" },
+};
 
 const toPercent = (value) => {
   const numeric = Number(value);
@@ -181,7 +186,6 @@ function HRDashboard({ onLogout }) {
   const [rolePool, setRolePool] = useState(DEFAULT_ROLES);
   const [roleDraft, setRoleDraft] = useState("");
   const [jdFile, setJdFile] = useState(null);
-  const [activeStage, setActiveStage] = useState("resume");
   const [metrics, setMetrics] = useState({
     active_roles: 0,
     total_applicants: 0,
@@ -194,12 +198,12 @@ function HRDashboard({ onLogout }) {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [resumeLimit, setResumeLimit] = useState(20);
-  const [oaLimit, setOaLimit] = useState(5);
-  const [interviewLimit, setInterviewLimit] = useState(5);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 8;
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+  const headerRef = useRef(null);
 
   const normalizeRole = (value) =>
     value
@@ -292,46 +296,24 @@ function HRDashboard({ onLogout }) {
     return candidates.filter((candidate) => candidate.role === selectedRole);
   }, [candidates, selectedRole]);
 
-  const stageCandidates = useMemo(() => {
-    if (activeStage === "resume") return byRole;
-    if (activeStage === "oa") {
-      return byRole.filter((candidate) => {
-        const status = (candidate.oa_status || "").toUpperCase();
-        return (
-          candidate.oa_eligible === 1 ||
-          candidate.oa_score !== null ||
-          status === "PASS" ||
-          status === "FAIL"
-        );
-      });
-    }
-    return byRole.filter((candidate) => {
-      const status = (candidate.interview_status || "").toUpperCase();
-      return (
-        candidate.interview_eligible === 1 ||
-        candidate.interview_score !== null ||
-        status === "PASS" ||
-        status === "FAIL" ||
-        status === "APPROVED"
-      );
-    });
-  }, [activeStage, byRole]);
-
+  // All candidates for the selected role, sorted by overall score
   const filteredStageCandidates = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return stageCandidates;
-    return stageCandidates.filter((candidate) =>
-      [
-        candidate.name,
-        candidate.email,
-        candidate.status,
-        candidate.oa_status,
-        candidate.interview_status,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query)),
-    );
-  }, [searchTerm, stageCandidates]);
+    const base = query
+      ? byRole.filter((c) =>
+          [c.name, c.email, c.status, c.oa_status, c.interview_status]
+            .filter(Boolean)
+            .some((v) => String(v).toLowerCase().includes(query))
+        )
+      : byRole;
+    return [...base].sort((a, b) => {
+      const score = (c) =>
+        Number(c.ats_score ?? c.ats_match_percent ?? 0) * 0.4 +
+        Number(c.oa_percentage ?? (c.oa_total ? (c.oa_score / c.oa_total) * 100 : 0)) * 0.35 +
+        Number(c.interview_score ?? 0) * 0.25;
+      return score(b) - score(a);
+    });
+  }, [searchTerm, byRole]);
 
   const totalPages = Math.max(
     1,
@@ -428,92 +410,45 @@ function HRDashboard({ onLogout }) {
     await loadMetrics(selectedRole);
   };
 
-  const runTop20Resume = async () => {
-    if (!selectedRole) return;
-    const limit = Math.max(1, Number(resumeLimit) || 1);
-    setLoadingAction(true);
-    try {
-      await shortlistCandidates(selectedRole, limit);
-      setToast(`Resume shortlisting complete: Top ${limit} moved to OA stage.`);
-      await refreshAll();
-    } catch (err) {
-      setToast(err.message || "Resume shortlisting failed.");
-    } finally {
-      setLoadingAction(false);
-    }
+  // ── Overall Score: weighted composite across all stages ──
+  const overallScore = (c) => {
+    const ats = Number(c.ats_score ?? c.ats_match_percent ?? 0);
+    const oa  = Number(c.oa_percentage ?? (c.oa_total ? (c.oa_score / c.oa_total) * 100 : 0));
+    const iv  = Number(c.interview_score ?? 0);
+    return ats * 0.4 + oa * 0.35 + iv * 0.25;
   };
 
-  const runTop5Oa = async () => {
-    const limit = Math.max(1, Number(oaLimit) || 1);
-    const eligible = [...stageCandidates]
-      .filter((candidate) => candidate.email)
-      .sort(
-        (a, b) =>
-          Number(b.oa_percentage ?? b.oa_score ?? 0) -
-          Number(a.oa_percentage ?? a.oa_score ?? 0),
-      )
-      .slice(0, limit);
+  // ── Select Top N state + direct handler ──
+  const [selectLimit, setSelectLimit] = useState(5);
 
-    if (eligible.length === 0) {
-      setToast("No OA candidates available for selection.");
-      return;
-    }
+  const runSelectTopCandidates = async () => {
+    if (!selectedRole) { setToast("Select a role first."); return; }
+    const n = Math.max(1, Number(selectLimit) || 1);
+
+    // Compute locally who the top N are (for the congrats modal)
+    const topN = [...byRole]
+      .filter((c) => c.email)
+      .sort((a, b) => overallScore(b) - overallScore(a))
+      .slice(0, n);
+
+    if (topN.length === 0) { setToast("No candidates available for this role."); return; }
 
     setLoadingAction(true);
     try {
-      for (const candidate of eligible) {
-        await setCandidateDecision(candidate.email, "APPROVED");
-      }
-      setToast(
-        `OA stage complete: Top ${eligible.length} moved to Interview stage.`,
-      );
+      await finalizeCandidates(selectedRole, n);
+      setCongratsCandidates(topN);
+      setShowCongrats(true);
+      setToast(`✅ Top ${topN.length} candidates selected and notified.`);
       await refreshAll();
     } catch (err) {
-      setToast(err.message || "OA selection failed.");
+      setToast(err.message || "Selection failed.");
     } finally {
       setLoadingAction(false);
     }
   };
 
-  const runTop5Interview = async () => {
-    if (!selectedRole) return;
-    const limit = Math.max(1, Number(interviewLimit) || 1);
-    // Preview top candidates first and ask for confirmation
-    try {
-      setLoadingAction(true);
-      const preview = await previewFinalize(selectedRole, limit);
-      setPreviewCandidates(preview || []);
-      setPreviewOpen(true);
-    } catch (err) {
-      setToast(err.message || "Preview failed.");
-    } finally {
-      setLoadingAction(false);
-    }
-  };
-
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewCandidates, setPreviewCandidates] = useState([]);
   const [showCongrats, setShowCongrats] = useState(false);
   const [congratsCandidates, setCongratsCandidates] = useState([]);
-
-  const confirmFinalize = async () => {
-    if (!selectedRole) return;
-    const limit = Math.max(1, Number(interviewLimit) || 1);
-    setLoadingAction(true);
-    try {
-      await finalizeCandidates(selectedRole, limit);
-      setToast(`Final selection confirmed: Top ${limit} notified.`);
-      setPreviewOpen(false);
-      // Show congratulations modal with the finalized candidates
-      setCongratsCandidates(previewCandidates || []);
-      setShowCongrats(true);
-      await refreshAll();
-    } catch (err) {
-      setToast(err.message || "Final selection failed.");
-    } finally {
-      setLoadingAction(false);
-    }
-  };
 
   const addRole = async () => {
     const normalized = normalizeRole(roleDraft);
@@ -559,30 +494,38 @@ function HRDashboard({ onLogout }) {
   };
 
   const getStageEmptyMessage = () => {
-    if (!selectedRole) {
-      return "No active role selected. Add a role and upload a JD to begin.";
-    }
-    if (byRole.length === 0) {
-      return "No applicants yet for this role.";
-    }
-    if (activeStage === "oa") {
-      return "No candidates have reached the OA stage yet.";
-    }
-    if (activeStage === "interview") {
-      return "No candidates have reached the interview stage yet.";
-    }
-    return "No candidates are available in this stage.";
+    if (!selectedRole) return "Select a role to view candidates.";
+    if (byRole.length === 0) return "No applicants yet for this role.";
+    return "No candidates found.";
   };
 
+  // Always return the best available XAI stage data
   const getXaiForStage = (candidate) => {
     const stages = candidate?.xai?.stages || {};
-    return stages[activeStage] || stages.final || null;
+    return stages.final || stages.interview || stages.oa || stages.resume || null;
   };
 
   const getStageRecommendation = (candidate) => {
     const stageXai = getXaiForStage(candidate);
     return stageXai?.recommendation || "REVIEW";
   };
+
+  // ── Measure real header height and expose as --header-h CSS var ──
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const h = Math.ceil(entry.contentRect.height);
+      document.documentElement.style.setProperty("--header-h", `${h + 24}px`);
+    });
+    observer.observe(headerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // ── Lock body scroll when drawer is open ──
+  useEffect(() => {
+    document.body.style.overflow = selectedCandidate ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [selectedCandidate]);
 
   useEffect(() => {
     const init = async () => {
@@ -607,338 +550,367 @@ function HRDashboard({ onLogout }) {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeStage, selectedRole, searchTerm]);
+  }, [selectedRole, searchTerm]);
+
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    if (profileOpen) {
+      document.addEventListener("mousedown", handleOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [profileOpen]);
 
   return (
     <div className="page hrcc-page">
-      <div className="hrcc-header">
-        <h2>{"\u{1F4CA} Hiring Command Center"}</h2>
+      {/* ── Section 1: Header ── */}
+      <header className="hrcc-header" ref={headerRef}>
+        <div className="hrcc-brand">
+          <span className="hrcc-brand-icon">📊</span>
+          <div>
+            <h2>Hiring Command Center</h2>
+            <span className="hrcc-brand-sub">HireX · AI-Powered Screening</span>
+          </div>
+        </div>
         {onLogout && (
-          <button className="btn hrcc-logout-btn" onClick={onLogout}>
-            Logout
-          </button>
+          <div className="hrcc-profile-wrapper" ref={profileRef}>
+            <button
+              type="button"
+              className="hrcc-profile-chip"
+              onClick={() => setProfileOpen((prev) => !prev)}
+              aria-haspopup="true"
+              aria-expanded={profileOpen}
+            >
+              <span className="hrcc-profile-avatar">
+                {(localStorage.getItem("authName") || "H").charAt(0).toUpperCase()}
+              </span>
+              <span className="hrcc-profile-name">
+                {localStorage.getItem("authName") || "HR"}
+              </span>
+              <span className="hrcc-profile-caret">{profileOpen ? "▲" : "▼"}</span>
+            </button>
+            {profileOpen && (
+              <div className="hrcc-profile-dropdown" role="menu">
+                <div className="hrcc-dropdown-info">
+                  <p className="hrcc-dropdown-name">
+                    {localStorage.getItem("authName") || "HR User"}
+                  </p>
+                  <p className="hrcc-dropdown-email">
+                    {localStorage.getItem("authEmail") || ""}
+                  </p>
+                </div>
+                <div className="hrcc-dropdown-divider" />
+                <button
+                  type="button"
+                  className="hrcc-dropdown-logout"
+                  role="menuitem"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    onLogout();
+                  }}
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         )}
-      </div>
+      </header>
 
       {toast && <p className="helper">{toast}</p>}
       {error && <p className="helper error">{error}</p>}
 
-      <section className="hrcc-role-create">
-        <div className="form-row">
-          <label>Add Role</label>
-          <input
-            type="text"
-            value={roleDraft}
-            onChange={(e) => setRoleDraft(e.target.value)}
-            placeholder="Example: Data Analyst"
-          />
-        </div>
-        <div className="form-row">
-          <label>Upload JD (PDF)</label>
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={(e) => setJdFile(e.target.files?.[0] || null)}
-          />
-        </div>
-        <button
-          className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
-          onClick={addRole}
-          disabled={loadingAction}
-        >
-          {loadingAction && <span className="spinner" aria-hidden="true" />}
-          Add Role + JD
-        </button>
-      </section>
-
+      {/* ── Section 2: Statistics ── */}
       <section className="hrcc-summary-grid">
         {summaryCards.map((card) => (
-          <article className="hrcc-summary-card" key={card.key}>
-            <p className="hrcc-card-value">{card.value ?? 0}</p>
-            <p className="hrcc-card-label">{card.label}</p>
+          <article className={`hrcc-summary-card hrcc-card-${card.key}`} key={card.key}>
+            <div className="hrcc-card-icon">
+              {CARD_META[card.key]?.icon ?? "📈"}
+            </div>
+            <div className="hrcc-card-body">
+              <p className="hrcc-card-value">{card.value ?? 0}</p>
+              <p className="hrcc-card-label">{card.label}</p>
+            </div>
           </article>
         ))}
       </section>
 
-      <section className="hrcc-role-section">
-        {roles.map((role) => (
-          <button
-            key={role}
-            className={`hrcc-role-card ${selectedRole === role ? "active" : ""}`}
-            onClick={() => setSelectedRole(role)}
-          >
-            <strong>{formatRole(role)}</strong>
-            <span>{roleStats[role] || 0} Applicants</span>
-            <small>View Pipeline -&gt;</small>
-          </button>
-        ))}
-      </section>
+      <div className="hrcc-workspace">
+        {/* ── Section 3: Role Management ── */}
+        <aside className="hrcc-sidebar">
 
-      <section className="hrcc-stage-bar">
-        <button
-          className={`hrcc-stage-btn ${activeStage === "resume" ? "active" : ""}`}
-          onClick={() => setActiveStage("resume")}
-        >
-          Resume Shortlisting
-        </button>
-        <button
-          className={`hrcc-stage-btn ${activeStage === "oa" ? "active" : ""}`}
-          onClick={() => setActiveStage("oa")}
-        >
-          OA Stage
-        </button>
-        <button
-          className={`hrcc-stage-btn ${activeStage === "interview" ? "active" : ""}`}
-          onClick={() => setActiveStage("interview")}
-        >
-          Interview Stage
-        </button>
-      </section>
+          {/* New Role Form */}
+          <div className="hrcc-new-role-panel">
+            <p className="hrcc-panel-heading">New Role</p>
 
-      <section className="hrcc-stage-actions">
-        <div className="form-row">
-          <label>Resume Top N</label>
-          <input
-            type="number"
-            min={1}
-            value={resumeLimit}
-            onChange={(e) => setResumeLimit(e.target.value)}
-          />
-        </div>
-        <div className="form-row">
-          <label>OA Top N</label>
-          <input
-            type="number"
-            min={1}
-            value={oaLimit}
-            onChange={(e) => setOaLimit(e.target.value)}
-          />
-        </div>
-        <div className="form-row">
-          <label>Interview Top N</label>
-          <input
-            type="number"
-            min={1}
-            value={interviewLimit}
-            onChange={(e) => setInterviewLimit(e.target.value)}
-          />
-        </div>
-        {activeStage === "resume" && (
-          <button
-            className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
-            onClick={runTop20Resume}
-            disabled={loadingAction || !selectedRole}
-          >
-            {loadingAction && <span className="spinner" aria-hidden="true" />}
-            Select Top {Math.max(1, Number(resumeLimit) || 1)} for OA
-          </button>
-        )}
-        {activeStage === "oa" && (
-          <button
-            className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
-            onClick={runTop5Oa}
-            disabled={loadingAction || stageCandidates.length === 0}
-          >
-            {loadingAction && <span className="spinner" aria-hidden="true" />}
-            Select Top {Math.max(1, Number(oaLimit) || 1)} for Interview
-          </button>
-        )}
-        {activeStage === "interview" && (
-          <button
-            className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
-            onClick={runTop5Interview}
-            disabled={loadingAction || !selectedRole}
-          >
-            {loadingAction && <span className="spinner" aria-hidden="true" />}
-            Select Top {Math.max(1, Number(interviewLimit) || 1)} Final
-          </button>
-        )}
-      </section>
+            <div className="hrcc-field">
+              <label className="hrcc-field-label" htmlFor="role-name-input">Role Name</label>
+              <input
+                id="role-name-input"
+                type="text"
+                className="hrcc-field-input"
+                value={roleDraft}
+                onChange={(e) => setRoleDraft(e.target.value)}
+                placeholder="e.g. Data Analyst"
+                onKeyDown={(e) => e.key === "Enter" && addRole()}
+              />
+            </div>
 
-      <section className="hrcc-table-controls">
-        <div className="form-row hrcc-search">
-          <label>Search candidates</label>
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by name, email, or status"
-          />
-        </div>
-        <span>
-          Showing {paginatedStageCandidates.length} of{" "}
-          {filteredStageCandidates.length}
-        </span>
-      </section>
+            <div className="hrcc-field">
+              <label className="hrcc-field-label">Job Description (PDF)</label>
+              <label className="hrcc-file-upload" htmlFor="jd-file-input">
+                <span className="hrcc-file-icon">📄</span>
+                <span className="hrcc-file-text">
+                  {jdFile ? jdFile.name : "Click to upload PDF"}
+                </span>
+                <span className="hrcc-file-hint">{jdFile ? "✓ File selected" : "PDF only · Max 10MB"}</span>
+                <input
+                  id="jd-file-input"
+                  type="file"
+                  accept=".pdf"
+                  style={{ display: "none" }}
+                  onChange={(e) => setJdFile(e.target.files?.[0] || null)}
+                />
+              </label>
+              {jdFile && (
+                <button
+                  type="button"
+                  className="hrcc-file-clear"
+                  onClick={() => setJdFile(null)}
+                >
+                  ✕ Remove file
+                </button>
+              )}
+            </div>
 
-      <section className="hrcc-table-shell">
-        <table className="table hrcc-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>ATS Score</th>
-              <th>OA Score</th>
-              <th>OA Tab Switches</th>
-              <th>Interview Score</th>
-              <th>Interview Tab Switches</th>
-              <th>Final Status</th>
-              <th>XAI</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={9}>Loading candidates...</td>
-              </tr>
-            )}
-            {!loading && filteredStageCandidates.length === 0 && (
-              <tr>
-                <td colSpan={9}>{getStageEmptyMessage()}</td>
-              </tr>
-            )}
-            {!loading &&
-              paginatedStageCandidates.map((candidate) => (
-                <tr key={candidate.id || candidate.email}>
-                  <td>{candidate.name || "-"}</td>
-                  <td>
-                    {candidate.ats_score != null
-                      ? Number(candidate.ats_score).toFixed(2)
-                      : candidate.ats_match_percent != null
-                        ? Number(candidate.ats_match_percent).toFixed(2)
-                        : "-"}
-                  </td>
+            <button
+              className={`btn hrcc-submit-btn ${loadingAction ? "loading" : ""}`}
+              onClick={addRole}
+              disabled={loadingAction}
+            >
+              {loadingAction && <span className="spinner" aria-hidden="true" />}
+              {loadingAction ? "Creating…" : "Add Role + JD"}
+            </button>
+          </div>
 
-                  <td>
-                    {candidate.oa_score !== null && candidate.oa_total
-                      ? `${candidate.oa_score}/${candidate.oa_total}`
-                      : "-"}
-                    <br />
-                    <span className={getStatusClass(candidate.oa_status || "NOT_TAKEN")}>
-                      {candidate.oa_status || "NOT_TAKEN"}
-                    </span>
-                  </td>
-                  <td>{candidate.oa_tab_switches ?? 0}</td>
-                  <td>
-                    {candidate.interview_score != null
-                      ? Number(candidate.interview_score).toFixed(2)
-                      : "-"}
-                    <br />
-                    <span
-                      className={getStatusClass(
-                        candidate.interview_status || "NOT_TAKEN",
-                      )}
-                    >
-                      {candidate.interview_status || "NOT_TAKEN"}
-                    </span>
-                  </td>
-                  <td>{candidate.interview_tab_switches ?? 0}</td>
-                  <td>
-                    <span className={getStatusClass(candidate.status)}>
-                      {candidate.status || "PENDING"}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn secondary"
-                      disabled={loadingAction}
-                      onClick={async () => {
-                        setLoadingAction(true);
-                        try {
-                          await setCandidateDecision(candidate.email, "HOLD");
-                          setToast(
-                            `${candidate.name || candidate.email} put on HOLD`,
-                          );
-                          await refreshAll();
-                        } catch (err) {
-                          setToast(err.message || "Action failed.");
-                        } finally {
-                          setLoadingAction(false);
-                        }
-                      }}
-                    >
-                      {getStageRecommendation(candidate)}
-                    </button>
-                  </td>
-                  <td>
-                    <button
-                      className="btn hrcc-action-btn"
-                      onClick={() => setSelectedCandidate(candidate)}
-                    >
-                      View Details
-                    </button>
-                  </td>
+          {/* Active Roles List */}
+          {roles.length > 0 && (
+            <div className="hrcc-roles-panel">
+              <p className="hrcc-panel-heading">Active Roles
+                <span className="hrcc-roles-count">{roles.length}</span>
+              </p>
+              <div className="hrcc-role-list">
+                {roles.map((role) => (
+                  <button
+                    key={role}
+                    className={`hrcc-role-item ${selectedRole === role ? "active" : ""}`}
+                    onClick={() => setSelectedRole(role)}
+                  >
+                    <div className="hrcc-role-item-left">
+                      <span className="hrcc-role-dot" />
+                      <strong className="hrcc-role-name">{formatRole(role)}</strong>
+                    </div>
+                    <span className="hrcc-role-badge">{roleStats[role] || 0}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </aside>
+
+        <div className="hrcc-main">
+
+          {/* ── Candidate Ranking Controls ── */}
+          <section className="hrcc-table-controls">
+            <div className="form-row hrcc-search">
+              <label>Search candidates</label>
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, email, or status"
+              />
+            </div>
+            <div className="hrcc-select-top-bar" style={{ alignItems: "flex-end" }}>
+              <div className="hrcc-field" style={{ minWidth: "160px" }}>
+                <label className="hrcc-field-label" htmlFor="select-limit-input">
+                  Candidates to Select
+                </label>
+                <input
+                  id="select-limit-input"
+                  type="number"
+                  min={1}
+                  value={selectLimit}
+                  onChange={(e) => setSelectLimit(e.target.value)}
+                  className="hrcc-field-input"
+                />
+              </div>
+              <button
+                className={`btn hrcc-submit-btn hrcc-select-top-btn ${loadingAction ? "loading" : ""}`}
+                onClick={runSelectTopCandidates}
+                disabled={loadingAction || !selectedRole}
+              >
+                {loadingAction && <span className="spinner" aria-hidden="true" />}
+                {loadingAction ? "Processing…" : `Select Top ${Math.max(1, Number(selectLimit) || 1)}`}
+              </button>
+            </div>
+            <span style={{ whiteSpace: "nowrap", color: "var(--muted)", fontSize: "0.83rem" }}>
+              {filteredStageCandidates.length} candidate{filteredStageCandidates.length !== 1 ? "s" : ""}
+            </span>
+          </section>
+
+          <section className="hrcc-table-shell">
+            <table className="table hrcc-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "32px", textAlign: "center" }}>#</th>
+                  <th>Name</th>
+                  <th>Overall Score</th>
+                  <th>ATS Score</th>
+                  <th>OA Score</th>
+                  <th>Interview Score</th>
+                  <th>Status</th>
+                  <th>Details</th>
                 </tr>
-              ))}
-          </tbody>
-        </table>
-      </section>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><td colSpan={8}>Loading candidates...</td></tr>
+                )}
+                {!loading && filteredStageCandidates.length === 0 && (
+                  <tr><td colSpan={8}>{getStageEmptyMessage()}</td></tr>
+                )}
+                {!loading &&
+                  paginatedStageCandidates.map((candidate, idx) => {
+                    const overall = overallScore(candidate);
+                    const rank = (currentPage - 1) * pageSize + idx + 1;
+                    const isSelected = (candidate.status || "").toUpperCase() === "SELECTED";
+                    return (
+                      <tr
+                        key={candidate.id || candidate.email}
+                        style={isSelected ? { background: "rgba(34,197,94,0.07)" } : {}}
+                      >
+                        <td style={{ textAlign: "center", fontWeight: 700, color: rank <= Number(selectLimit) ? "var(--accent)" : "var(--muted)", fontSize: "0.8rem" }}>
+                          {rank}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{candidate.name || "-"}</td>
+                        <td>
+                          <span style={{ fontWeight: 700, color: "var(--accent)" }}>
+                            {overall.toFixed(1)}
+                          </span>
+                        </td>
+                        <td>
+                          {candidate.ats_score != null
+                            ? Number(candidate.ats_score).toFixed(1)
+                            : candidate.ats_match_percent != null
+                              ? Number(candidate.ats_match_percent).toFixed(1)
+                              : "-"}
+                        </td>
+                        <td>
+                          {candidate.oa_score !== null && candidate.oa_total
+                            ? `${candidate.oa_score}/${candidate.oa_total}`
+                            : "-"}
+                        </td>
+                        <td>
+                          {candidate.interview_score != null
+                            ? Number(candidate.interview_score).toFixed(1)
+                            : "-"}
+                        </td>
+                        <td>
+                          <span className={getStatusClass(candidate.status)}>
+                            {candidate.status || "UNDER REVIEW"}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn hrcc-action-btn"
+                            onClick={() => setSelectedCandidate(candidate)}
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </section>
 
-      {filteredStageCandidates.length > pageSize && (
-        <nav className="hrcc-pagination" aria-label="Candidate pagination">
-          <button
-            className="btn secondary"
-            type="button"
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-          >
-            Previous
-          </button>
-          <span>
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            className="btn secondary"
-            type="button"
-            onClick={() =>
-              setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-            }
-            disabled={currentPage === totalPages}
-          >
-            Next
-          </button>
-        </nav>
-      )}
+          {filteredStageCandidates.length > pageSize && (
+            <nav className="hrcc-pagination" aria-label="Candidate pagination">
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </nav>
+          )}
 
-      <section className="hrcc-funnel">
-        <div>
-          <p>Applied</p>
-          <strong>{funnel.applied}</strong>
+          {/* ── Section 6: Analytics ── */}
+          <section className="hrcc-funnel">
+            <div>
+              <p>Applied</p>
+              <strong>{funnel.applied}</strong>
+            </div>
+            <span>-&gt;</span>
+            <div>
+              <p>ATS Cleared</p>
+              <strong>{funnel.atsCleared}</strong>
+            </div>
+            <span>-&gt;</span>
+            <div>
+              <p>OA Passed</p>
+              <strong>{funnel.oaPassed}</strong>
+            </div>
+            <span>-&gt;</span>
+            <div>
+              <p>Interview</p>
+              <strong>{funnel.interview}</strong>
+            </div>
+            <span>-&gt;</span>
+            <div>
+              <p>Selected</p>
+              <strong>{funnel.selected}</strong>
+            </div>
+          </section>
         </div>
-        <span>-&gt;</span>
-        <div>
-          <p>ATS Cleared</p>
-          <strong>{funnel.atsCleared}</strong>
-        </div>
-        <span>-&gt;</span>
-        <div>
-          <p>OA Passed</p>
-          <strong>{funnel.oaPassed}</strong>
-        </div>
-        <span>-&gt;</span>
-        <div>
-          <p>Interview</p>
-          <strong>{funnel.interview}</strong>
-        </div>
-        <span>-&gt;</span>
-        <div>
-          <p>Selected</p>
-          <strong>{funnel.selected}</strong>
-        </div>
-      </section>
+      </div>
 
+      {/* ── Overlays & Modals (outside layout flow) ── */}
       <div
         className={`hrcc-overlay ${selectedCandidate ? "open" : ""}`}
         onClick={() => setSelectedCandidate(null)}
       />
-      <aside className={`hrcc-side-panel ${selectedCandidate ? "open" : ""}`}>
+      <aside className={`hrcc-side-panel ${selectedCandidate ? "open" : ""}`} aria-label="Candidate details">
         <div className="hrcc-side-header">
           <h3>Candidate Details</h3>
           <button
-            className="btn secondary"
+            type="button"
+            className="hrcc-side-close"
+            aria-label="Close drawer"
             onClick={() => setSelectedCandidate(null)}
           >
-            Close
+            ✕
           </button>
         </div>
 
@@ -978,7 +950,6 @@ function HRDashboard({ onLogout }) {
                     ? Number(selectedCandidate.ats_match_percent).toFixed(2)
                     : "-"}
               </p>
-
               <p>
                 <strong>Skills Missing:</strong>{" "}
                 {formatList(selectedCandidate.ats_missing_skills)}
@@ -1025,7 +996,7 @@ function HRDashboard({ onLogout }) {
             <section>
               <h4>XAI Snapshot</h4>
               <XaiSnapshot
-                stageLabel={formatStageLabel(activeStage)}
+                stageLabel="Overall Evaluation"
                 stageXai={getXaiForStage(selectedCandidate)}
                 modelExplanations={selectedCandidate?.xai?.model_explanations}
               />
@@ -1037,55 +1008,34 @@ function HRDashboard({ onLogout }) {
       <div className="hrcc-footer-note">
         <span>Selected role: {formatRole(selectedRole)}</span>
       </div>
-      {previewOpen && (
-        <div className="hrcc-modal open">
-          <div className="hrcc-modal-card">
-            <h3>Preview Final Selection</h3>
-            <p>Top candidates to be marked selected:</p>
-            <ul>
-              {previewCandidates.map((c) => (
-                <li key={c.id}>
-                  {c.name || c.email} - {c.email} - ATS: {c.ats_score ?? "-"} -
-                  OA: {c.oa_percentage ?? "-"}
-                </li>
-              ))}
-            </ul>
-            <div className="toolbar">
-              <button
-                className="btn secondary"
-                onClick={() => setPreviewOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn primary"
-                onClick={confirmFinalize}
-                disabled={loadingAction}
-              >
-                Confirm and Notify
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
       {showCongrats && (
         <div className="hrcc-modal open">
           <div className="hrcc-modal-card">
-            <h3>Congratulations!</h3>
-            <p>The following candidate(s) were selected as final:</p>
-            <ul>
-              {congratsCandidates.map((c) => (
-                <li key={c.id || c.email}>
-                  {c.name || c.email} - {c.email}
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <span style={{ fontSize: "2.5rem" }}>🎉</span>
+              <h3 style={{ marginTop: "10px" }}>Selection Complete!</h3>
+              <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                {congratsCandidates.length} candidate{congratsCandidates.length !== 1 ? "s" : ""} selected for <strong>{formatRole(selectedRole)}</strong>.
+                They will see a congratulations message on their dashboard.
+              </p>
+            </div>
+            <ul style={{ padding: "0", listStyle: "none", display: "flex", flexDirection: "column", gap: "8px", maxHeight: "260px", overflowY: "auto" }}>
+              {congratsCandidates.map((c, i) => (
+                <li key={c.id || c.email} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px", borderRadius: "10px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                  <span style={{ fontWeight: 700, color: "var(--accent)", minWidth: "22px" }}>#{i + 1}</span>
+                  <span style={{ fontWeight: 600 }}>{c.name || c.email}</span>
+                  <span style={{ fontSize: "0.78rem", color: "var(--muted)", marginLeft: "auto" }}>{c.email}</span>
                 </li>
               ))}
             </ul>
-            <div className="toolbar">
+            <div className="toolbar" style={{ marginTop: "20px" }}>
               <button
-                className="btn primary"
+                className="btn hrcc-submit-btn"
+                style={{ width: "100%" }}
                 onClick={() => setShowCongrats(false)}
               >
-                Close
+                Done
               </button>
             </div>
           </div>

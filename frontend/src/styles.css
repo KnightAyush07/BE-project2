@@ -102,11 +102,22 @@ a {
   border: 1px solid var(--toggle-border);
   background: var(--toggle-bg);
   color: var(--toggle-text);
-  border-radius: 999px;
-  padding: 9px 14px;
-  font-weight: 600;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
   cursor: pointer;
   backdrop-filter: blur(8px);
+  padding: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  line-height: 1;
+}
+
+.theme-toggle:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
 }
 
 .centered {
@@ -763,7 +774,7 @@ body[data-theme="dark"] .table tbody tr:hover {
 
 .hrcc-page {
   display: grid;
-  gap: 22px;
+  gap: 16px;
 }
 
 .hrcc-header {
@@ -771,136 +782,557 @@ body[data-theme="dark"] .table tbody tr:hover {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  padding: 14px 20px;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.97),
+    rgba(245, 251, 249, 0.94)
+  );
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
+  position: sticky;
+  top: 10px;
+  z-index: 100;
+  backdrop-filter: blur(10px);
 }
 
-.hrcc-logout-btn {
-  background: #ffffff;
-  color: #0f172a;
-  border: 1px solid rgba(15, 23, 42, 0.2);
+body[data-theme="dark"] .hrcc-header {
+  background: linear-gradient(
+    140deg,
+    rgba(13, 21, 39, 0.97),
+    rgba(10, 20, 38, 0.94)
+  );
 }
 
-body[data-theme="dark"] .hrcc-logout-btn {
-  background: #111d33;
-  color: #f8fafc;
+.hrcc-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
+
+.hrcc-brand-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.hrcc-brand h2 {
+  margin: 0;
+  font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+}
+
+.hrcc-brand-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+}
+
+/* Profile chip & dropdown */
+.hrcc-profile-wrapper {
+  position: relative;
+}
+
+.hrcc-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hrcc-profile-chip:hover {
+  background: rgba(37, 99, 235, 0.07);
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.14);
+}
+
+.hrcc-profile-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.hrcc-profile-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hrcc-profile-caret {
+  font-size: 0.6rem;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+.hrcc-profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.18);
+  z-index: 200;
+  overflow: hidden;
+  animation: rise 0.18s ease;
+}
+
+body[data-theme="dark"] .hrcc-profile-dropdown {
+  background: #0d1527;
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.55);
+}
+
+.hrcc-dropdown-info {
+  padding: 14px 16px 10px;
+}
+
+.hrcc-dropdown-name {
+  margin: 0 0 2px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.hrcc-dropdown-email {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.hrcc-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0;
+  border: none;
+}
+
+.hrcc-dropdown-logout {
+  display: block;
+  width: 100%;
+  padding: 11px 16px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--danger);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.hrcc-dropdown-logout:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+
 
 .hrcc-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
-}
-
-.hrcc-role-create {
-  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto;
-  align-items: end;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.92),
-    rgba(245, 251, 247, 0.88)
-  );
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  border-radius: 14px;
-  padding: 14px;
 }
 
-body[data-theme="dark"] .hrcc-role-create {
-  background: linear-gradient(
-    145deg,
-    rgba(13, 21, 39, 0.92),
-    rgba(11, 25, 44, 0.9)
-  );
-}
+/* Replaced by hrcc-new-role-panel below */
+
 
 .hrcc-summary-card {
-  background: #ffffff;
-  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(140deg, #ffffff, #f8fcff);
+  color: #0f172a;
   border-radius: 16px;
-  padding: 16px 18px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  padding: 18px 20px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-left-color: var(--accent);
+  cursor: default;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.hrcc-summary-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 36px rgba(37, 99, 235, 0.16);
 }
 
 body[data-theme="dark"] .hrcc-summary-card {
-  background: linear-gradient(150deg, #101a2f, #12233f);
+  background: linear-gradient(140deg, #101a2f, #0e1929);
   color: #f8fafc;
 }
 
-body[data-theme="dark"] .hrcc-card-label {
-  color: #b8c3d9;
+.hrcc-card-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.1);
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  transition: background 0.22s ease;
+}
+
+.hrcc-summary-card:hover .hrcc-card-icon {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.hrcc-card-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .hrcc-card-value {
-  font-size: 2rem;
+  font-size: 1.9rem;
   font-weight: 700;
   margin: 0;
   line-height: 1.1;
+  font-family: "DM Serif Display", serif;
+  color: var(--text);
 }
 
 .hrcc-card-label {
-  margin: 8px 0 0;
-  color: #4b5563;
-  font-size: 0.88rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 600;
 }
 
-.hrcc-role-section {
+/* Per-card left border accent colors */
+.hrcc-card-active_roles    { border-left-color: #2563eb; }
+.hrcc-card-active_roles    .hrcc-card-icon { background: rgba(37, 99, 235, 0.12); }
+.hrcc-card-total_applicants { border-left-color: #6366f1; }
+.hrcc-card-total_applicants .hrcc-card-icon { background: rgba(99, 102, 241, 0.12); }
+.hrcc-card-shortlisted     { border-left-color: #22c55e; }
+.hrcc-card-shortlisted     .hrcc-card-icon { background: rgba(34, 197, 94, 0.12); }
+.hrcc-card-oa_cleared      { border-left-color: #0ea5e9; }
+.hrcc-card-oa_cleared      .hrcc-card-icon { background: rgba(14, 165, 233, 0.12); }
+.hrcc-card-final_selected  { border-left-color: #f59e0b; }
+.hrcc-card-final_selected  .hrcc-card-icon { background: rgba(245, 158, 11, 0.12); }
+
+.hrcc-workspace {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 12px;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
 
-.hrcc-role-card {
-  text-align: left;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 14px;
+.hrcc-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 90px;
+  width: 340px;
+  min-width: 0;
+}
+
+/* ── New Role Panel ── */
+.hrcc-new-role-panel {
   background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.95),
-    rgba(241, 245, 249, 0.96)
+    150deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(245, 251, 249, 0.95)
   );
-  color: #111827;
-  padding: 14px;
-  cursor: pointer;
-  transition:
-    transform 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-  display: grid;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.07);
+}
+
+body[data-theme="dark"] .hrcc-new-role-panel {
+  background: linear-gradient(
+    150deg,
+    rgba(13, 21, 39, 0.98),
+    rgba(10, 20, 38, 0.95)
+  );
+  box-shadow: 0 4px 24px rgba(2, 6, 23, 0.45);
+}
+
+.hrcc-panel-heading {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted) !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
-body[data-theme="dark"] .hrcc-role-card {
-  background: linear-gradient(
-    165deg,
-    rgba(16, 26, 47, 0.98),
-    rgba(18, 35, 63, 0.95)
-  );
-  color: #f8fafc;
+/* Field group */
+.hrcc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
-body[data-theme="dark"] .hrcc-role-card span,
-body[data-theme="dark"] .hrcc-role-card small {
-  color: #b8c3d9;
+.hrcc-field-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
 }
 
-.hrcc-role-card:hover {
+.hrcc-field-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.hrcc-field-input:focus {
+  border-color: rgba(37, 99, 235, 0.56);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  outline: none;
+}
+
+/* Custom file upload dropzone */
+.hrcc-file-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 14px;
+  border: 1.5px dashed var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.hrcc-file-upload:hover {
+  border-color: rgba(37, 99, 235, 0.5);
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.hrcc-file-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.hrcc-file-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+  max-width: 100%;
+}
+
+.hrcc-file-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.hrcc-file-clear {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+
+.hrcc-file-clear:hover {
+  opacity: 1;
+}
+
+/* Submit button */
+.hrcc-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.32);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  letter-spacing: 0.2px;
+}
+
+.hrcc-submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  border-color: var(--accent);
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.42);
 }
 
-.hrcc-role-card.active {
-  border-color: var(--accent);
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
+.hrcc-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
-.hrcc-role-card strong {
-  font-size: 1rem;
+.hrcc-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.hrcc-role-card span,
-.hrcc-role-card small {
-  color: #475569;
+/* ── Active Roles Panel ── */
+.hrcc-roles-panel {
+  background: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(245, 251, 249, 0.95)
+  );
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.07);
 }
+
+body[data-theme="dark"] .hrcc-roles-panel {
+  background: linear-gradient(
+    150deg,
+    rgba(13, 21, 39, 0.98),
+    rgba(10, 20, 38, 0.95)
+  );
+  box-shadow: 0 4px 24px rgba(2, 6, 23, 0.45);
+}
+
+.hrcc-roles-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.hrcc-role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hrcc-role-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.18s, border-color 0.18s, transform 0.15s;
+}
+
+.hrcc-role-item:hover {
+  background: rgba(37, 99, 235, 0.07);
+  border-color: rgba(37, 99, 235, 0.22);
+  transform: translateX(3px);
+}
+
+.hrcc-role-item.active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(14, 165, 233, 0.09));
+  border-color: rgba(37, 99, 235, 0.38);
+}
+
+.hrcc-role-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hrcc-role-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: background 0.18s;
+}
+
+.hrcc-role-item.active .hrcc-role-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.hrcc-role-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hrcc-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+.hrcc-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+
+
+
+
+
 
 .hrcc-stage-bar {
   display: flex;
@@ -936,9 +1368,44 @@ body[data-theme="dark"] .hrcc-stage-btn.active {
 
 .hrcc-stage-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  align-items: flex-end;
+  padding: 16px 20px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.88),
+    rgba(245, 251, 249, 0.82)
+  );
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+}
+
+body[data-theme="dark"] .hrcc-stage-actions {
+  background: linear-gradient(
+    145deg,
+    rgba(13, 21, 39, 0.9),
+    rgba(11, 25, 44, 0.88)
+  );
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+/* Single-row input + button inside stage-actions */
+.hrcc-select-top-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  width: 100%;
   flex-wrap: wrap;
 }
+
+.hrcc-select-top-btn {
+  flex: 1 1 200px;
+  padding: 11px 20px;
+  white-space: nowrap;
+}
+
+
 
 .hrcc-table-shell {
   overflow: auto;
@@ -1055,14 +1522,17 @@ body[data-theme="dark"] .hrcc-funnel span {
   color: #7dd3fc;
 }
 
+/* ── Candidate Details Drawer ── */
 .hrcc-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.45);
+  background: rgba(2, 6, 23, 0.4);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease;
-  z-index: 18;
+  transition: opacity 0.28s ease;
+  z-index: 90;
+  /* Sits below the sticky header */
+  top: 0;
 }
 
 .hrcc-overlay.open {
@@ -1072,18 +1542,22 @@ body[data-theme="dark"] .hrcc-funnel span {
 
 .hrcc-side-panel {
   position: fixed;
-  top: 0;
+  top: var(--header-h, 80px);   /* dynamic: set via JS ResizeObserver */
   right: 0;
-  width: min(440px, 100%);
-  height: 100vh;
-  background: #ffffff;
-  color: #0f172a;
-  transform: translateX(100%);
-  transition: transform 0.26s ease;
-  z-index: 20;
-  box-shadow: -10px 0 30px rgba(2, 6, 23, 0.3);
+  width: clamp(340px, 38vw, 560px);
+  height: calc(100vh - var(--header-h, 80px));
+  background: var(--surface);
+  color: var(--text);
+  transform: translateX(105%);  /* slightly over 100% hides box-shadow bleed */
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 95;
+  box-shadow: none;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr;  /* header row + scrollable content row */
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: 0;
 }
 
 body[data-theme="dark"] .hrcc-side-panel {
@@ -1093,22 +1567,57 @@ body[data-theme="dark"] .hrcc-side-panel {
 
 .hrcc-side-panel.open {
   transform: translateX(0);
+  box-shadow: -12px 0 40px rgba(2, 6, 23, 0.22);
 }
 
 .hrcc-side-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 16px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.hrcc-side-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.hrcc-side-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.hrcc-side-close:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .hrcc-side-content {
-  overflow: auto;
-  padding: 16px;
-  display: grid;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
+  /* Independent scroll — does NOT scroll the page behind it */
+  overscroll-behavior: contain;
 }
 
 .hrcc-side-content section {
@@ -1153,21 +1662,167 @@ body[data-theme="dark"] .hrcc-footer-note {
   color: #b8c3d9;
 }
 
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.55s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* Table controls */
+.hrcc-table-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hrcc-table-controls .form-row {
+  flex: 1 1 240px;
+}
+
+.hrcc-table-controls > span {
+  font-size: 0.83rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Pagination */
+.hrcc-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.hrcc-pagination span {
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-width: 80px;
+  text-align: center;
+}
+
+/* Modal */
+.hrcc-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 300;
+  backdrop-filter: blur(4px);
+}
+
+.hrcc-modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 48px rgba(2, 6, 23, 0.4);
+  animation: rise 0.22s ease;
+}
+
+.hrcc-modal-card h3 {
+  margin-bottom: 12px;
+}
+
+.hrcc-modal-card ul {
+  padding-left: 20px;
+  margin: 10px 0 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Status pill dark mode overrides */
+body[data-theme="dark"] .status-selected,
+body[data-theme="dark"] .status-pass,
+body[data-theme="dark"] .status-approved {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+}
+
+body[data-theme="dark"] .status-rejected {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+}
+
+body[data-theme="dark"] .status-fail {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+}
+
+body[data-theme="dark"] .status-not-taken,
+body[data-theme="dark"] .status-under-review,
+body[data-theme="dark"] .status-interview-shortlisted,
+body[data-theme="dark"] .status-pending,
+body[data-theme="dark"] .status-submitted {
+  background: rgba(100, 116, 139, 0.22);
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .status-shortlisted {
+  background: rgba(37, 99, 235, 0.22);
+  color: #93c5fd;
+}
+
+/* Helper dark mode */
+body[data-theme="dark"] .helper {
+  color: var(--text);
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.24);
+}
+
+body[data-theme="dark"] .helper.error {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+@media (max-width: 1200px) {
+  .hrcc-workspace {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+  .hrcc-sidebar {
+    width: 300px;
+  }
+}
+
 @media (max-width: 900px) {
-  .hrcc-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .hrcc-role-create {
+  .hrcc-workspace {
     grid-template-columns: 1fr;
-    align-items: stretch;
   }
-
-  .hrcc-action-group .btn {
+  .hrcc-sidebar {
+    position: static;
     width: 100%;
   }
+  .hrcc-new-role-panel,
+  .hrcc-roles-panel {
+    max-width: 100%;
+  }
+}
 
+@media (max-width: 768px) {
+  .hrcc-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .hrcc-stage-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .hrcc-funnel {
     justify-content: center;
   }

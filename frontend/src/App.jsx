@@ -22,9 +22,11 @@ function App() {
       <button
         type="button"
         className="theme-toggle"
+        aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        title={theme === "dark" ? "Light mode" : "Dark mode"}
         onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
       >
-        {theme === "dark" ? "Light Mode" : "Dark Mode"}
+        {theme === "dark" ? "☀️" : "🌙"}
       </button>
       <Routes>
         <Route path="/" element={<Home />} />

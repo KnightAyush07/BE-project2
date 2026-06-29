@@ -87,20 +87,46 @@ function CandidatePage() {
     }
   };
 
+  // ── Derived status flags (declared before any useEffect that reads them) ──
+  const FINAL_STATUSES = [
+    "SELECTED",
+    "NOT_SELECTED",
+    "REGRET",
+    "REJECTED",
+    "OFFERED",
+    "DECLINED",
+    "CONGRATULATIONS",
+  ];
+
+  const isFinalDecision = FINAL_STATUSES.includes(
+    (candidateStatus?.status || "").toUpperCase()
+  );
+
+  const isSelected = ["SELECTED", "CONGRATULATIONS", "OFFERED"].includes(
+    (candidateStatus?.status || "").toUpperCase()
+  );
+
+  const isNotSelected = ["NOT_SELECTED", "REGRET", "REJECTED"].includes(
+    (candidateStatus?.status || "").toUpperCase()
+  );
+
   useEffect(() => {
     if (candidateEmail && authToken) {
       checkOAEligibility();
       checkInterviewGate();
       loadCandidateStatus();
+      // Stop polling once a final HR decision has been received
       const interval = setInterval(() => {
-        loadCandidateStatus();
-        checkOAEligibility();
-        checkInterviewGate();
+        if (!isFinalDecision) {
+          loadCandidateStatus();
+          checkOAEligibility();
+          checkInterviewGate();
+        }
       }, 3000);
       return () => clearInterval(interval);
     }
     setLoadingEligibility(false);
-  }, [candidateEmail, authToken]);
+  }, [candidateEmail, authToken, isFinalDecision]);
 
   const handleLogin = async () => {
     setAuthError("");
@@ -142,14 +168,6 @@ function CandidatePage() {
   };
 
   const isCandidateLoggedIn = authToken && authRole === "CANDIDATE";
-
-  const FINAL_STATUSES = [
-    "SELECTED",
-    "REJECTED",
-    "OFFERED",
-    "DECLINED",
-    "CONGRATULATIONS",
-  ];
 
   return (
     <div className={`page ${isCandidateLoggedIn ? "" : "centered"}`.trim()}>
@@ -212,15 +230,15 @@ function CandidatePage() {
             <p>
               Status:{" "}
               <strong>
-                {FINAL_STATUSES.includes(
-                  (candidateStatus?.status || "").toUpperCase(),
-                )
-                  ? candidateStatus.status
-                  : "UNDER_REVIEW"}
+                {isSelected
+                  ? "✅ Selected"
+                  : isNotSelected
+                  ? "❌ Not Selected"
+                  : "⏳ Under Review"}
               </strong>
             </p>
             {candidateStatus?.message && <p>{candidateStatus.message}</p>}
-            <p className="helper">Live status refreshes every 3 seconds.</p>
+            {!isFinalDecision && <p className="helper">Live status refreshes every 3 seconds.</p>}
           </div>
 
           <div className="card stack">
@@ -228,9 +246,7 @@ function CandidatePage() {
               <p>Checking eligibility...</p>
             ) : !hasApplication ? (
               <p>Upload resume and submit application first to unlock OA.</p>
-            ) : ["SELECTED", "OFFERED", "CONGRATULATIONS"].includes(
-                (candidateStatus?.status || "").toUpperCase(),
-              ) ? (
+            ) : isSelected ? (
               <div className="stack">
                 <h3>🎉 Congratulations!</h3>
                 <p>
@@ -252,6 +268,20 @@ function CandidatePage() {
                   Keep your phone and email available. Our HR team will contact
                   you soon!
                 </p>
+              </div>
+            ) : isNotSelected ? (
+              <div className="stack">
+                <h3>Application Result</h3>
+                <p>
+                  Thank you for applying and for completing our hiring process.
+                  After careful evaluation, we regret to inform you that you
+                  were not selected for this role at this time.
+                </p>
+                <p>
+                  We appreciate the effort you put into each stage and encourage
+                  you to apply again in the future.
+                </p>
+                <p className="helper">You may close this page.</p>
               </div>
             ) : interviewStatus === "PASS" || interviewStatus === "FAIL" ? (
               <div className="stack">

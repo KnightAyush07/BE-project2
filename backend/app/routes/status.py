@@ -24,41 +24,51 @@ def check_status(email: str):
         return {"error": "No application was submitted"}
 
     current_status = (candidate["status"] or "").strip().upper()
-    if current_status in ("APPROVED", "REJECTED"):
-        return {
-            "status": current_status,
-            "message": "HR has reviewed your application."
-        }
+    visible = candidate["visible_to_candidate"] if "visible_to_candidate" in candidate.keys() else 0
+
+    # ── Final decisions (persisted by HR) ──
     if current_status in ("SELECTED", "CONGRATULATIONS"):
         return {
             "status": "SELECTED",
-            "message": "Congratulations! You have been selected as a top candidate!"
+            "visible_to_candidate": 1,
+            "message": "Congratulations! You have been selected as a top candidate!",
         }
     if current_status == "REGRET":
         return {
-            "status": "REGRET",
-            "message": "Thank you for applying. Unfortunately, you were not selected."
+            "status": "NOT_SELECTED",
+            "visible_to_candidate": int(visible),
+            "message": "Thank you for your effort. Unfortunately you were not selected for this role.",
+        }
+    if current_status in ("APPROVED", "REJECTED"):
+        return {
+            "status": current_status,
+            "visible_to_candidate": int(visible),
+            "message": "HR has reviewed your application.",
         }
 
+    # ── Still in progress ──
     time_passed = datetime.utcnow() - datetime.fromisoformat(candidate["submitted_at"])
+
+    if _has_completed_full_process(candidate):
+        return {
+            "status": "UNDER_REVIEW",
+            "visible_to_candidate": 0,
+            "message": "You completed all rounds. Waiting for HR final decision.",
+        }
 
     if time_passed < RESULT_DELAY:
         return {
             "status": "UNDER_REVIEW",
-            "message": "Your application is still under review"
-        }
-
-    # After delay, keep completed candidates waiting until HR finalizes top N.
-    if _has_completed_full_process(candidate):
-        return {
-            "status": "UNDER_REVIEW",
-            "message": "You completed all rounds. Waiting for HR final decision."
+            "visible_to_candidate": 0,
+            "message": "Your application is still under review.",
         }
 
     return {
         "status": "UNDER_REVIEW",
-        "message": "Your application is still under review"
+        "visible_to_candidate": 0,
+        "message": "Your application is under review.",
     }
+
 
 
 @router.post("/clear-all-data")
