@@ -35,6 +35,10 @@ export default function InterviewTest() {
       .toString()
       .padStart(2, "0")}`;
   }, [timeLeft]);
+  const answeredCount = useMemo(
+    () => Object.values(answers).filter((value) => value.trim()).length,
+    [answers],
+  );
 
   const submitTest = async (auto = false) => {
     if (submittedRef.current) return;
@@ -161,22 +165,34 @@ export default function InterviewTest() {
   }
 
   return (
-    <section className="page">
-      <div className="card stack">
-        <h2>Online Text AI Interview</h2>
-        <p>
-          Role: <strong>{role.replace(/_/g, " ")}</strong>
-        </p>
-        <p>
-          Time Left: <strong>{formattedTime}</strong>
-        </p>
+    <section className="page interview-page">
+      <div className="card stack interview-shell">
+        <div className="interview-header">
+          <div>
+            <p className="oa-kicker">AI Interview</p>
+            <h2>Online Text AI Interview</h2>
+            <p>
+              Role: <strong>{role.replace(/_/g, " ")}</strong>
+            </p>
+          </div>
+          <div className="interview-status-card">
+            <span className="recording-dot" aria-hidden="true" />
+            <span>{eligible && !submitted ? "Recording answers" : "Standby"}</span>
+            <strong>{formattedTime}</strong>
+          </div>
+        </div>
         {tabSwitches > 0 && (
           <p>
             Tab switches: <strong>{tabSwitches}/3</strong>
           </p>
         )}
 
-        {loading && <p>Loading interview...</p>}
+        {loading && (
+          <p className="helper">
+            <span className="spinner" aria-hidden="true" />
+            Loading interview...
+          </p>
+        )}
         {warning && <p className="helper error">{warning}</p>}
         {error && <p className="helper error">{error}</p>}
         {!loading && !eligible && !error && (
@@ -188,8 +204,24 @@ export default function InterviewTest() {
 
         {!loading && eligible && questions.length > 0 && (
           <>
+            <div className="interview-progress">
+              <span>
+                Answered {answeredCount}/{questions.length}
+              </span>
+              <div className="oa-progress-track">
+                <span
+                  style={{
+                    width: `${
+                      questions.length
+                        ? Math.round((answeredCount / questions.length) * 100)
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
             {questions.map((q) => (
-              <div key={q.id} className="form-row">
+              <div key={q.id} className="form-row interview-question-card">
                 <label>{q.question}</label>
                 <textarea
                   rows={4}
@@ -204,12 +236,23 @@ export default function InterviewTest() {
                 />
               </div>
             ))}
+            <div className="interview-transcript-card">
+              <div>
+                <span className="recording-dot small" aria-hidden="true" />
+                <strong>Live transcript</strong>
+              </div>
+              <p>
+                {Object.values(answers).filter(Boolean).join(" ") ||
+                  "Your typed answers will appear here as a clean review transcript."}
+              </p>
+            </div>
             <div className="toolbar">
               <button
-                className="btn primary"
+                className={`btn primary ${submitting ? "loading" : ""}`}
                 onClick={() => submitTest(false)}
                 disabled={submitting}
               >
+                {submitting && <span className="spinner" aria-hidden="true" />}
                 {submitting ? "Submitting..." : "Submit Interview"}
               </button>
               <button

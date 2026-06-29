@@ -11,6 +11,170 @@ import {
 
 const DEFAULT_ROLES = [];
 
+const toPercent = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(100, numeric));
+};
+
+const friendlyFeatureName = (value = "") =>
+  value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const simplifyRule = (rule = "") =>
+  rule
+    .replace(/_/g, " ")
+    .replace(/[<>]=?/g, (match) =>
+      match.includes(">") ? "is above" : "is below",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+
+function XaiSnapshot({ stageLabel, stageXai, modelExplanations }) {
+  const [showTechnical, setShowTechnical] = useState(false);
+  const shapFeatures = modelExplanations?.shap_top_features || [];
+  const limeRules = modelExplanations?.lime_local_rules || [];
+  const probability = toPercent(modelExplanations?.advance_probability);
+
+  if (!stageXai) {
+    return <p>No XAI explanation available for this candidate yet.</p>;
+  }
+
+  return (
+    <div className="xai-snapshot">
+      <div className="xai-section xai-recommendation">
+        <span className="xai-icon">💡</span>
+        <div>
+          <h4>Recommendation</h4>
+          <p>
+            <strong>{stageXai.recommendation || "REVIEW"}</strong> for{" "}
+            {stageLabel}.
+          </p>
+        </div>
+      </div>
+
+      <div className="xai-section">
+        <span className="xai-icon">📋</span>
+        <div>
+          <h4>Overall Summary</h4>
+          <p>{stageXai.summary || "No summary available yet."}</p>
+        </div>
+      </div>
+
+      <div className="xai-section">
+        <span className="xai-icon">✅</span>
+        <div>
+          <h4>Strengths</h4>
+          <ul>
+            {(stageXai.strengths || ["No standout strengths listed yet."]).map(
+              (item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ),
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <div className="xai-section">
+        <span className="xai-icon">⚠</span>
+        <div>
+          <h4>Concerns</h4>
+          <ul>
+            {(stageXai.concerns || ["No major concerns listed yet."]).map(
+              (item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ),
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <div className="xai-section">
+        <span className="xai-icon">➡</span>
+        <div>
+          <h4>Next Step</h4>
+          <ul>
+            {(stageXai.next_steps || ["Continue review with the available scores."]).map(
+              (item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ),
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <div className="xai-section">
+        <span className="xai-icon">📈</span>
+        <div>
+          <h4>Selection Probability</h4>
+          <div className="xai-meter">
+            <span style={{ width: `${probability}%` }} />
+          </div>
+          <p>{probability ? `${probability}% likely to advance` : "Not enough model data yet."}</p>
+        </div>
+      </div>
+
+      <div className="xai-section">
+        <span className="xai-icon">📊</span>
+        <div>
+          <h4>Feature Importance (SHAP)</h4>
+          <div className="xai-bars">
+            {shapFeatures.length === 0 && <p>No SHAP factors available yet.</p>}
+            {shapFeatures.map((item, index) => {
+              const impact = Math.min(100, Math.abs(Number(item.impact) || 0));
+              const isPositive = (item.direction || "").toLowerCase() !== "negative";
+              return (
+                <div className="xai-bar-row" key={`${item.feature}-${index}`}>
+                  <div>
+                    <strong>{friendlyFeatureName(item.feature)}</strong>
+                    <span>{isPositive ? "Positive contribution" : "Negative contribution"}</span>
+                  </div>
+                  <div className={`xai-bar ${isPositive ? "positive" : "negative"}`}>
+                    <span style={{ width: `${impact}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="xai-section">
+        <span className="xai-icon">💡</span>
+        <div>
+          <h4>Decision Rules (LIME)</h4>
+          <ul>
+            {limeRules.length === 0 && <li>No LIME rules available yet.</li>}
+            {limeRules.map((item, index) => (
+              <li key={`${item.feature_rule}-${index}`}>
+                {simplifyRule(item.feature_rule)}{" "}
+                {(item.direction || "").toLowerCase() === "negative"
+                  ? "may reduce confidence."
+                  : "supports moving forward."}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <button
+        className="btn secondary xai-technical-toggle"
+        type="button"
+        onClick={() => setShowTechnical((prev) => !prev)}
+      >
+        {showTechnical ? "Hide Technical Details" : "Show Technical Details"}
+      </button>
+
+      {showTechnical && (
+        <pre className="xai-technical">
+          {JSON.stringify({ stageXai, modelExplanations }, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function HRDashboard({ onLogout }) {
   const [candidates, setCandidates] = useState([]);
   const [selectedRole, setSelectedRole] = useState("");
@@ -33,6 +197,9 @@ function HRDashboard({ onLogout }) {
   const [resumeLimit, setResumeLimit] = useState(20);
   const [oaLimit, setOaLimit] = useState(5);
   const [interviewLimit, setInterviewLimit] = useState(5);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 8;
 
   const normalizeRole = (value) =>
     value
@@ -149,6 +316,32 @@ function HRDashboard({ onLogout }) {
       );
     });
   }, [activeStage, byRole]);
+
+  const filteredStageCandidates = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return stageCandidates;
+    return stageCandidates.filter((candidate) =>
+      [
+        candidate.name,
+        candidate.email,
+        candidate.status,
+        candidate.oa_status,
+        candidate.interview_status,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [searchTerm, stageCandidates]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredStageCandidates.length / pageSize),
+  );
+
+  const paginatedStageCandidates = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStageCandidates.slice(start, start + pageSize);
+  }, [currentPage, filteredStageCandidates]);
 
   const fallbackMetrics = useMemo(() => {
     const shortlisted = byRole.filter(
@@ -412,6 +605,10 @@ function HRDashboard({ onLogout }) {
     loadMetrics(selectedRole);
   }, [selectedRole, fallbackMetrics]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeStage, selectedRole, searchTerm]);
+
   return (
     <div className="page hrcc-page">
       <div className="hrcc-header">
@@ -445,10 +642,11 @@ function HRDashboard({ onLogout }) {
           />
         </div>
         <button
-          className="btn hrcc-action-btn"
+          className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
           onClick={addRole}
           disabled={loadingAction}
         >
+          {loadingAction && <span className="spinner" aria-hidden="true" />}
           Add Role + JD
         </button>
       </section>
@@ -527,31 +725,50 @@ function HRDashboard({ onLogout }) {
         </div>
         {activeStage === "resume" && (
           <button
-            className="btn hrcc-action-btn"
+            className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
             onClick={runTop20Resume}
             disabled={loadingAction || !selectedRole}
           >
+            {loadingAction && <span className="spinner" aria-hidden="true" />}
             Select Top {Math.max(1, Number(resumeLimit) || 1)} for OA
           </button>
         )}
         {activeStage === "oa" && (
           <button
-            className="btn hrcc-action-btn"
+            className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
             onClick={runTop5Oa}
             disabled={loadingAction || stageCandidates.length === 0}
           >
+            {loadingAction && <span className="spinner" aria-hidden="true" />}
             Select Top {Math.max(1, Number(oaLimit) || 1)} for Interview
           </button>
         )}
         {activeStage === "interview" && (
           <button
-            className="btn hrcc-action-btn"
+            className={`btn hrcc-action-btn ${loadingAction ? "loading" : ""}`}
             onClick={runTop5Interview}
             disabled={loadingAction || !selectedRole}
           >
+            {loadingAction && <span className="spinner" aria-hidden="true" />}
             Select Top {Math.max(1, Number(interviewLimit) || 1)} Final
           </button>
         )}
+      </section>
+
+      <section className="hrcc-table-controls">
+        <div className="form-row hrcc-search">
+          <label>Search candidates</label>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by name, email, or status"
+          />
+        </div>
+        <span>
+          Showing {paginatedStageCandidates.length} of{" "}
+          {filteredStageCandidates.length}
+        </span>
       </section>
 
       <section className="hrcc-table-shell">
@@ -575,13 +792,13 @@ function HRDashboard({ onLogout }) {
                 <td colSpan={9}>Loading candidates...</td>
               </tr>
             )}
-            {!loading && stageCandidates.length === 0 && (
+            {!loading && filteredStageCandidates.length === 0 && (
               <tr>
                 <td colSpan={9}>{getStageEmptyMessage()}</td>
               </tr>
             )}
             {!loading &&
-              stageCandidates.map((candidate) => (
+              paginatedStageCandidates.map((candidate) => (
                 <tr key={candidate.id || candidate.email}>
                   <td>{candidate.name || "-"}</td>
                   <td>
@@ -596,12 +813,24 @@ function HRDashboard({ onLogout }) {
                     {candidate.oa_score !== null && candidate.oa_total
                       ? `${candidate.oa_score}/${candidate.oa_total}`
                       : "-"}
+                    <br />
+                    <span className={getStatusClass(candidate.oa_status || "NOT_TAKEN")}>
+                      {candidate.oa_status || "NOT_TAKEN"}
+                    </span>
                   </td>
                   <td>{candidate.oa_tab_switches ?? 0}</td>
                   <td>
                     {candidate.interview_score != null
                       ? Number(candidate.interview_score).toFixed(2)
                       : "-"}
+                    <br />
+                    <span
+                      className={getStatusClass(
+                        candidate.interview_status || "NOT_TAKEN",
+                      )}
+                    >
+                      {candidate.interview_status || "NOT_TAKEN"}
+                    </span>
                   </td>
                   <td>{candidate.interview_tab_switches ?? 0}</td>
                   <td>
@@ -644,6 +873,32 @@ function HRDashboard({ onLogout }) {
           </tbody>
         </table>
       </section>
+
+      {filteredStageCandidates.length > pageSize && (
+        <nav className="hrcc-pagination" aria-label="Candidate pagination">
+          <button
+            className="btn secondary"
+            type="button"
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </button>
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            className="btn secondary"
+            type="button"
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+            }
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </button>
+        </nav>
+      )}
 
       <section className="hrcc-funnel">
         <div>
@@ -769,77 +1024,11 @@ function HRDashboard({ onLogout }) {
 
             <section>
               <h4>XAI Snapshot</h4>
-              {getXaiForStage(selectedCandidate) ? (
-                <>
-                  <p>
-                    <strong>Stage:</strong> {formatStageLabel(activeStage)}
-                  </p>
-                  <p>
-                    <strong>Recommendation:</strong>{" "}
-                    {getXaiForStage(selectedCandidate).recommendation}
-                  </p>
-                  <p>
-                    <strong>Summary:</strong>{" "}
-                    {getXaiForStage(selectedCandidate).summary}
-                  </p>
-                  <p>
-                    <strong>Why this recommendation:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).rationale || []).join(
-                      " ",
-                    ) || "-"}
-                  </p>
-                  <p>
-                    <strong>Strengths:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).strengths || []).join(
-                      " ",
-                    ) || "-"}
-                  </p>
-                  <p>
-                    <strong>Concerns:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).concerns || []).join(
-                      " ",
-                    ) || "-"}
-                  </p>
-                  <p>
-                    <strong>Next step:</strong>{" "}
-                    {(getXaiForStage(selectedCandidate).next_steps || []).join(
-                      " ",
-                    ) || "-"}
-                  </p>
-                  <p>
-                    <strong>Surrogate advance probability:</strong>{" "}
-                    {selectedCandidate?.xai?.model_explanations
-                      ?.advance_probability ?? "-"}
-                    %
-                  </p>
-                  <p>
-                    <strong>SHAP top factors:</strong>{" "}
-                    {(
-                      selectedCandidate?.xai?.model_explanations
-                        ?.shap_top_features || []
-                    )
-                      .map(
-                        (item) =>
-                          `${item.feature} (${item.direction}, impact ${item.impact})`,
-                      )
-                      .join(" ") || "-"}
-                  </p>
-                  <p>
-                    <strong>LIME local rules:</strong>{" "}
-                    {(
-                      selectedCandidate?.xai?.model_explanations
-                        ?.lime_local_rules || []
-                    )
-                      .map(
-                        (item) =>
-                          `${item.feature_rule} (${item.direction}, weight ${item.weight})`,
-                      )
-                      .join(" ") || "-"}
-                  </p>
-                </>
-              ) : (
-                <p>No XAI explanation available for this candidate yet.</p>
-              )}
+              <XaiSnapshot
+                stageLabel={formatStageLabel(activeStage)}
+                stageXai={getXaiForStage(selectedCandidate)}
+                modelExplanations={selectedCandidate?.xai?.model_explanations}
+              />
             </section>
           </div>
         )}

@@ -95,6 +95,9 @@ export default function OATest({ role: roleProp = "python_dev" }) {
     () => Object.keys(answers).filter((key) => answers[key]).length,
     [answers]
   );
+  const progressPercent = questions.length
+    ? Math.round((answeredCount / questions.length) * 100)
+    : 0;
 
   const formattedTime = useMemo(() => {
     const minutes = Math.floor(timeLeft / 60);
@@ -206,10 +209,21 @@ export default function OATest({ role: roleProp = "python_dev" }) {
           <div className="oa-summary">
             Answered {answeredCount}/{questions.length}
           </div>
+          <div
+            className="oa-progress-track"
+            aria-label={`Assessment progress ${progressPercent}%`}
+          >
+            <span style={{ width: `${progressPercent}%` }} />
+          </div>
         </aside>
 
         <main className="oa-panel oa-panel-center">
-          {loading && <div className="oa-card">Loading questions...</div>}
+          {loading && (
+            <div className="oa-card oa-loading-card">
+              <span className="spinner" aria-hidden="true" />
+              Loading questions...
+            </div>
+          )}
           {!loading && currentQuestion && (
             <div className="oa-card">
               <div className="oa-question-header">
@@ -220,8 +234,13 @@ export default function OATest({ role: roleProp = "python_dev" }) {
               </div>
               <h2 className="oa-question-text">{currentQuestion.question}</h2>
               <div className="oa-options">
-                {currentQuestion.options.map((option) => (
-                  <label className="oa-option" key={option}>
+                {currentQuestion.options.map((option, optionIndex) => {
+                  const selected = answers[currentQuestion.id] === option;
+                  return (
+                  <label
+                    className={`oa-option ${selected ? "selected" : ""}`}
+                    key={option}
+                  >
                     <input
                       type="radio"
                       name={`question-${currentQuestion.id}`}
@@ -234,9 +253,13 @@ export default function OATest({ role: roleProp = "python_dev" }) {
                         }))
                       }
                     />
+                    <span className="oa-option-number">
+                      {optionIndex + 1}
+                    </span>
                     <span>{option}</span>
                   </label>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -263,10 +286,11 @@ export default function OATest({ role: roleProp = "python_dev" }) {
               Next
             </button>
             <button
-              className="btn primary"
+              className={`btn primary ${submitting ? "loading" : ""}`}
               onClick={() => submitTest(false)}
               disabled={submitting}
             >
+              {submitting && <span className="spinner" aria-hidden="true" />}
               {submitting ? "Submitting..." : "Submit Test"}
             </button>
           </div>
